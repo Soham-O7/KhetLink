@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  User2Icon,
   Mail,
   Lock,
   Eye,
@@ -18,7 +17,6 @@ interface LoginModalProps {
 }
 
 interface FieldErrors {
-  username?: string[];
   email?: string[];
   password?: string[];
 }
@@ -30,7 +28,6 @@ export default function LoginModal({ onClose, onSignUp }: LoginModalProps) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [form, setForm] = useState({
-    username: '',
     email: '',
     password: '',
   });
@@ -133,30 +130,6 @@ export default function LoginModal({ onClose, onSignUp }: LoginModalProps) {
 
         {/* LOGIN FORM */}
         <form className="login-form" onSubmit={handleSubmit}>
-
-          {/* USERNAME */}
-          <div className="login-input-wrapper">
-
-            <User2Icon
-              className="login-input-icon"
-              size={20}
-              strokeWidth={1.8}
-            />
-
-            <input
-              type="text"
-              name="username"
-              placeholder="Username"
-              autoComplete="username"
-              required
-              value={form.username}
-              onChange={set('username')}
-            />
-
-          </div>
-          {fieldErrors.username && (
-            <p className="login-field-error">{fieldErrors.username[0]}</p>
-          )}
 
 
           {/* EMAIL */}

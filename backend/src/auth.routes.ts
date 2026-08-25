@@ -23,11 +23,17 @@ const COOKIE_OPTS = {
 
 const signupSchema = z
   .object({
-    username: z
-      .string({ error: "Username is required" })
-      .min(3, "Username must be at least 3 characters")
-      .max(30, "Username must be at most 30 characters")
-      .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers and underscores"),
+    firstName: z
+      .string({ error: "First name is required" })
+      .min(1, "First name is required")
+      .max(50, "First name is too long")
+      .trim(),
+
+    lastName: z
+      .string({ error: "Last name is required" })
+      .min(1, "Last name is required")
+      .max(50, "Last name is too long")
+      .trim(),
 
     email: z
       .string({ error: "Email is required" })
@@ -60,11 +66,6 @@ const signupSchema = z
   });
 
 const loginSchema = z.object({
-  username: z
-    .string({ error: "Username is required" })
-    .min(1, "Username is required")
-    .trim(),
-
   email: z
     .string({ error: "Email is required" })
     .email("Please enter a valid email address")
@@ -84,28 +85,24 @@ router.post("/signup", async (req: Request, res: Response) => {
     return;
   }
 
-  const { username, email, phone, password } = parsed.data;
+  const { firstName, lastName, email, phone, password } = parsed.data;
 
-
-  const existing = await prisma.user.findFirst({
-    where: { OR: [{ email }, { username }] },
-  });
+  const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
-    const field = existing.email === email ? "Email" : "Username";
-    res.status(409).json({ error: `${field} already in use` });
+    res.status(409).json({ error: "Email already in use" });
     return;
   }
 
   const hashed = await bcrypt.hash(password, 12);
 
   const user = await prisma.user.create({
-    data: { username, email, phone, password: hashed },
-    select: { id: true, username: true, email: true },
+    data: { firstName, lastName, email, phone, password: hashed },
+    select: { id: true, firstName: true, lastName: true, email: true },
   });
 
   const token = jwt.sign(
-    { userId: user.id, username: user.username, email: user.email },
+    { userId: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -123,11 +120,9 @@ router.post("/login", async (req: Request, res: Response) => {
     return;
   }
 
-  const { username, email, password } = parsed.data;
+  const { email, password } = parsed.data;
 
-  const user = await prisma.user.findFirst({
-    where: { OR: [{ email }, { username }] },
-  });
+  const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
     res.status(401).json({ error: "Invalid credentials" });
@@ -141,7 +136,7 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 
   const token = jwt.sign(
-    { userId: user.id, username: user.username, email: user.email },
+    { userId: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
     JWT_SECRET,
     { expiresIn: "7d" }
   );
@@ -149,7 +144,7 @@ router.post("/login", async (req: Request, res: Response) => {
   res.cookie("token", token, COOKIE_OPTS);
   res.status(200).json({
     message: "Login successful",
-    user: { id: user.id, username: user.username, email: user.email },
+    user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
   });
 });
 
@@ -172,13 +167,14 @@ router.get("/me", async (req: Request, res: Response) => {
   try {
     const payload = jwt.verify(token, JWT_SECRET) as {
       userId: string;
-      username: string;
+      firstName: string;
+      lastName: string;
       email: string;
     };
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { id: true, username: true, email: true, phone: true },
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true },
     });
 
     if (!user) {

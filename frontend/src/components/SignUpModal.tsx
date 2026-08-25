@@ -19,7 +19,8 @@ interface SignupModalProps {
 }
 
 interface FieldErrors {
-  username?: string[];
+  firstName?: string[];
+  lastName?: string[];
   email?: string[];
   phone?: string[];
   password?: string[];
@@ -38,7 +39,8 @@ export default function SignupModal({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [form, setForm] = useState({
-    username: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     password: '',
@@ -155,30 +157,55 @@ export default function SignupModal({
 
         <form className="signup-form" onSubmit={handleSubmit}>
 
-          {/* USERNAME */}
+          {/* FIRST NAME + LAST NAME */}
 
-          <div className="signup-input-wrapper">
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
 
-            <User2Icon
-              className="signup-input-icon"
-              size={20}
-              strokeWidth={1.8}
-            />
+            <div style={{ flex: 1 }}>
+              <div className="signup-input-wrapper">
+                <User2Icon
+                  className="signup-input-icon"
+                  size={20}
+                  strokeWidth={1.8}
+                />
+                <input
+                  type="text"
+                  name="firstName"
+                  placeholder="First Name"
+                  autoComplete="given-name"
+                  required
+                  value={form.firstName}
+                  onChange={set('firstName')}
+                />
+              </div>
+              {fieldErrors.firstName && (
+                <p className="signup-field-error">{fieldErrors.firstName[0]}</p>
+              )}
+            </div>
 
-            <input
-              type="text"
-              name="username"
-              placeholder="Username"
-              autoComplete="username"
-              required
-              value={form.username}
-              onChange={set('username')}
-            />
+            <div style={{ flex: 1 }}>
+              <div className="signup-input-wrapper">
+                <User2Icon
+                  className="signup-input-icon"
+                  size={20}
+                  strokeWidth={1.8}
+                />
+                <input
+                  type="text"
+                  name="lastName"
+                  placeholder="Last Name"
+                  autoComplete="family-name"
+                  required
+                  value={form.lastName}
+                  onChange={set('lastName')}
+                />
+              </div>
+              {fieldErrors.lastName && (
+                <p className="signup-field-error">{fieldErrors.lastName[0]}</p>
+              )}
+            </div>
 
           </div>
-          {fieldErrors.username && (
-            <p className="signup-field-error">{fieldErrors.username[0]}</p>
-          )}
 
 
           {/* EMAIL */}
