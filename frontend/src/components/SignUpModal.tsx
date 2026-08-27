@@ -1,16 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  User2Icon,
-  Mail,
-  Phone,
-  Lock,
-  Eye,
-  EyeOff,
-  X,
-} from 'lucide-react';
-
+import { User2Icon, Mail, Phone, Lock, Eye, EyeOff, X, } from 'lucide-react';
 import './SignupModal.css';
 
 interface SignupModalProps {
@@ -418,17 +409,7 @@ export default function SignupModal({
 
 
         {/* BOTTOM LANDSCAPE */}
-
-        <div className="signup-landscape">
-
-          <div className="signup-hill signup-hill-back" />
-
-          <div className="signup-hill signup-hill-middle" />
-
-          <div className="signup-hill signup-hill-front" />
-
-        </div>
-
+        <div className="signup-landscape"></div>
       </div>
 
     </div>

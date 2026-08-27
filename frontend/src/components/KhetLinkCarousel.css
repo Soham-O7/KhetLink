@@ -1,0 +1,452 @@
+/* =====================================================
+   KHETLINK GALLERY
+===================================================== */
+
+.khetlink-carousel {
+  width: 100%;
+
+  padding:
+    1.2rem
+    clamp(1rem, 4vw, 3rem);
+
+  background: var(--light-bg);
+
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+
+/* =====================================================
+   CONTAINER
+===================================================== */
+
+.khetlink-carousel-container {
+  width: 100%;
+  margin: 0 auto;
+}
+
+
+/* =====================================================
+   HEADER
+===================================================== */
+
+.khetlink-carousel-header {
+  margin-bottom: 1.2rem;
+
+  text-align: center;
+}
+
+.khetlink-carousel-label {
+  display: inline-block;
+
+  color: var(--primary-green);
+
+  font-size: 0.6rem;
+  font-weight: 800;
+
+  letter-spacing: 0.12em;
+}
+
+.khetlink-carousel-header h2 {
+  margin: 0.25rem 0 0;
+
+  color: #102d49;
+
+  font-size:
+    clamp(
+      1.7rem,
+      3vw,
+      2.2rem
+    );
+
+  font-weight: 800;
+
+  line-height: 1.1;
+
+  letter-spacing: -0.03em;
+}
+
+.khetlink-carousel-header h2 strong {
+  color: var(--primary-green);
+}
+
+.khetlink-carousel-line {
+  width: 100%;
+  height: 3px;
+
+  margin:
+    0.6rem
+    auto;
+
+  border-radius: 999px;
+
+  background: #75bd55;
+}
+
+.khetlink-carousel-header p {
+  max-width: 540px;
+
+  margin: 0 auto;
+
+  color: var(--text-muted);
+
+  font-size: 0.7rem;
+
+  line-height: 1.4;
+}
+
+
+/* =====================================================
+   CAROUSEL BOX
+===================================================== */
+
+.khetlink-carousel-box {
+  position: relative;
+
+  width: 100%;
+
+  overflow: hidden;
+
+  padding: 0.7rem;
+
+  border:
+    1px solid
+    rgba(12, 122, 67, 0.14);
+
+  border-radius: 21px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #edf9ef,
+      #e2f5e7
+    );
+
+  box-shadow:
+    0 10px 25px
+    rgba(40, 100, 55, 0.08);
+
+  isolation: isolate;
+}
+
+
+/* =====================================================
+   VIEWPORT
+===================================================== */
+
+.khetlink-carousel-viewport {
+  width: 100%;
+
+  overflow: hidden;
+
+  border-radius: 15px;
+}
+
+
+/* =====================================================
+   TRACK
+===================================================== */
+
+.khetlink-carousel-track {
+  --gap: 0.8rem;
+  --visible-slides: 3;
+
+  display: flex;
+
+  gap: var(--gap);
+
+  transform:
+    translate3d(0, 0, 0);
+
+  will-change: transform;
+}
+
+
+/* =====================================================
+   SLIDES
+===================================================== */
+
+.khetlink-carousel-slide {
+  flex:
+    0 0
+    calc(
+      (
+        100% -
+        (
+          var(--gap) *
+          (
+            var(--visible-slides) - 1
+          )
+        )
+      )
+      /
+      var(--visible-slides)
+    );
+
+  height: 265px;
+
+  overflow: hidden;
+
+  border-radius: 15px;
+
+  background: #dcefdc;
+
+  border:
+    1px solid
+    rgba(12, 122, 67, 0.08);
+}
+
+
+/* =====================================================
+   IMAGE
+===================================================== */
+
+.khetlink-carousel-image {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: cover;
+
+  transition:
+    transform 0.5s ease,
+    filter 0.5s ease;
+}
+
+.khetlink-carousel-slide:hover
+.khetlink-carousel-image {
+  transform: scale(1.035);
+
+  filter:
+    saturate(1.05)
+    contrast(1.02);
+}
+
+
+/* =====================================================
+   ARROWS
+===================================================== */
+
+.khetlink-carousel-arrow {
+  position: absolute;
+
+  top: 50%;
+
+  z-index: 10;
+
+  width: 42px;
+  height: 42px;
+
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border:
+    1px solid
+    rgba(12, 122, 67, 0.16);
+
+  border-radius: 50%;
+
+  color: var(--primary-green);
+
+  background:
+    rgba(255, 255, 255, 0.94);
+
+  box-shadow:
+    0 4px 14px
+    rgba(0, 0, 0, 0.12);
+
+  transform:
+    translateY(-50%);
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.khetlink-carousel-arrow:hover {
+  color: white;
+
+  background:
+    var(--primary-green);
+
+  box-shadow:
+    0 7px 18px
+    rgba(12, 122, 67, 0.2);
+
+  transform:
+    translateY(-50%)
+    scale(1.05);
+}
+
+.khetlink-carousel-arrow:active {
+  transform:
+    translateY(-50%)
+    scale(0.96);
+}
+
+.khetlink-carousel-arrow.left {
+  left: 17px;
+}
+
+.khetlink-carousel-arrow.right {
+  right: 17px;
+}
+
+
+/* =====================================================
+   GALLERY LABEL
+===================================================== */
+
+.khetlink-carousel-overlay {
+  position: absolute;
+
+  left: 1rem;
+  bottom: 1rem;
+
+  z-index: 9;
+
+  padding:
+    0.35rem
+    0.65rem;
+
+  pointer-events: none;
+
+  border:
+    1px solid
+    rgba(255, 255, 255, 0.4);
+
+  border-radius: 999px;
+
+  background:
+    rgba(3, 75, 45, 0.7);
+
+  backdrop-filter: blur(7px);
+
+  color: white;
+
+  font-size: 0.56rem;
+  font-weight: 700;
+
+  letter-spacing: 0.04em;
+}
+
+
+/* =====================================================
+   TABLET
+===================================================== */
+
+@media (max-width: 900px) {
+
+  .khetlink-carousel {
+    padding:
+      1.2rem
+      1.2rem;
+  }
+
+  .khetlink-carousel-track {
+    --visible-slides: 2;
+  }
+
+  .khetlink-carousel-slide {
+    height: 255px;
+  }
+
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 600px) {
+
+  .khetlink-carousel {
+    padding:
+      1rem
+      0.8rem;
+  }
+
+  .khetlink-carousel-header {
+    margin-bottom: 0.9rem;
+  }
+
+  .khetlink-carousel-label {
+    font-size: 0.55rem;
+  }
+
+  .khetlink-carousel-header h2 {
+    font-size: 1.55rem;
+  }
+
+  .khetlink-carousel-header p {
+    font-size: 0.65rem;
+  }
+
+  .khetlink-carousel-box {
+    padding: 0.5rem;
+
+    border-radius: 17px;
+  }
+
+  .khetlink-carousel-track {
+    --visible-slides: 1;
+
+    gap: 0;
+  }
+
+  .khetlink-carousel-slide {
+    flex-basis: 100%;
+
+    height: 230px;
+
+    border-radius: 13px;
+  }
+
+  .khetlink-carousel-arrow {
+    width: 36px;
+    height: 36px;
+  }
+
+  .khetlink-carousel-arrow.left {
+    left: 10px;
+  }
+
+  .khetlink-carousel-arrow.right {
+    right: 10px;
+  }
+
+  .khetlink-carousel-overlay {
+    left: 0.75rem;
+    bottom: 0.75rem;
+  }
+}
+
+
+/* =====================================================
+   REDUCED MOTION
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .khetlink-carousel-track {
+    transform: none !important;
+  }
+
+  .khetlink-carousel-image,
+  .khetlink-carousel-arrow {
+    transition: none;
+  }
+}

@@ -259,16 +259,7 @@ export default function LoginModal({ onClose, onSignUp }: LoginModalProps) {
 
 
         {/* BOTTOM LANDSCAPE */}
-        <div className="login-landscape">
-
-          <div className="login-hill login-hill-back" />
-
-          <div className="login-hill login-hill-middle" />
-
-          <div className="login-hill login-hill-front" />
-
-        </div>
-
+        <div className="login-landscape"></div>
       </div>
     </div>
   );

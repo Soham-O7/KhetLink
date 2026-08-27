@@ -270,7 +270,7 @@ button {cursor: pointer;}
 .network-line {
   position: absolute;
   height: 75px;
-  border-top: 2px dotted rgba(0, 255, 128, 0.604);
+  border-top: 2px dotted rgb(0, 0, 0);
   border-radius: 50%;
 }
 
@@ -332,9 +332,9 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
 
 .role-card {
   position: relative;
-  min-height: 190px;
-  padding: 1.2rem 1.2rem 1rem;
   overflow: hidden;
+  min-height: 220px;
+  padding: 1.2rem 1.2rem 82px;
   border-radius: 17px;
   text-align: center;
   display: flex;
@@ -345,24 +345,30 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
   animation-range: entry 0% cover 30%;
 }
 
-.role-card::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 55px;
-  pointer-events: none;
-  background: linear-gradient(to top, rgba(110, 190, 100, 0.35), transparent);
-}
+.role-card > * { position: relative; z-index: 2; }
 
 .role-card:nth-child(1) { animation-delay: 0ms; }
 .role-card:nth-child(2) { animation-delay: 100ms; } 
 .role-card:nth-child(3) { animation-delay: 200ms; }
 
 .role-card.farmer {
-  background: #f0faf3;
+  background: #f0fff5;
   border: 1px solid #b9e6c8;
+}
+
+.role-card.farmer::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 85px;
+  background-image: url("/farmer_card.png");
+  background-size: 100% auto;
+  background-position: top bottom;
+  background-repeat: no-repeat;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .role-card.logistics {
@@ -370,9 +376,39 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
   border: 1px solid #afd3f8;
 }
 
+.role-card.logistics::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 52px;
+  background-image: url("/logistics_card.png");
+  background-size: 100% auto;
+  background-position: top bottom;
+  background-repeat: no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .role-card.buyer {
   background: #fff7ed;
   border: 1px solid #f5c78c;
+}
+
+.role-card.buyer::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 63px;
+  background-image: url("/buyer_card.png");
+  background-size: 100% auto;
+  background-position: top bottom;
+  background-repeat: no-repeat;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .icon-slot-circle {
@@ -410,6 +446,8 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
   position: relative;
   z-index: 2;
   max-width: 270px;
+  width: 100%;
+  min-height: 32px;
   margin: 0.3rem auto 0.8rem;
   color: var(--text-muted);
   font-size: 0.72rem;
@@ -418,10 +456,10 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
 
 .role-btn {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: 100%;
   height: 32px;
-  margin-top: auto;
+  margin-top: 0.3rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -610,7 +648,7 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
 .revenue-graphic {
   flex: 0 0 170px;
   animation: reveal-left linear both;
-  animation-timeline: scroll();
+  animation-timeline: view();
   animation-range: entry 0% cover 35%;
 }
 
@@ -1204,6 +1242,30 @@ section { width: 100%; padding: 2rem clamp(1rem, 4vw, 3rem); scroll-margin-top: 
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+::-webkit-scrollbar-button {
+  width: 9px;
+  height: 9px;
+  background: #0c7a43;
+}
+
+::-webkit-scrollbar-button:single-button:vertical:decrement {
+  width: 9px;
+  height: 9px;
+  background-color: #0c7a43;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 9 9'%3E%3Cpath d='M2 6L4.5 3L7 6' fill='none' stroke='white' stroke-width='1.2'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+::-webkit-scrollbar-button:single-button:vertical:increment {
+  width: 9px;
+  height: 9px;
+  background-color: #0c7a43;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='9' viewBox='0 0 9 9'%3E%3Cpath d='M2 3L4.5 6L7 3' fill='none' stroke='white' stroke-width='1.2'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 ::-webkit-scrollbar-thumb {

@@ -85,14 +85,11 @@
 
 .signup-close:hover {
   background: var(--primary-green);
-
   color: #ffffff;
-
-  transform: rotate(5deg);
 }
 
 .signup-close:active {
-  transform: rotate(5deg) translateY(1px);
+  transform: rotate(90deg) translateY(1px);
 }
 
 
@@ -514,70 +511,8 @@
 
   z-index: 1;
 
-  background:
-    linear-gradient(
-      to top,
-      #59c93a 0%,
-      #a9e88b 45%,
-      rgba(220, 249, 213, 0.25) 100%
-    );
+  background: url("/SLback.png") center / cover no-repeat;
 }
-
-
-/* =====================================================
-   LANDSCAPE HILLS
-===================================================== */
-
-.signup-hill {
-  position: absolute;
-
-  left: -10%;
-
-  width: 120%;
-
-  border-radius:
-    50% 50% 0 0;
-}
-
-
-/* BACK */
-
-.signup-hill-back {
-  bottom: 28px;
-
-  height: 58px;
-
-  background: #d4f2ce;
-
-  transform: rotate(-2deg);
-}
-
-
-/* MIDDLE */
-
-.signup-hill-middle {
-  bottom: 8px;
-
-  height: 58px;
-
-  background: #91df76;
-
-  transform: rotate(2deg);
-}
-
-
-/* FRONT */
-
-.signup-hill-front {
-  bottom: -20px;
-
-  height: 60px;
-
-  background: #4fbd32;
-
-  transform: rotate(-1deg);
-}
-
 
 /* =====================================================
    ANIMATIONS
@@ -735,4 +670,18 @@
   font-size: 0.75rem;
   margin: -2px 0 4px 4px;
   line-height: 1.4;
+}
+
+/* Remove native browser password reveal icons */
+.signup-input-wrapper input[type="password"]::-ms-reveal,
+.signup-input-wrapper input[type="password"]::-ms-clear {
+  display: none;
+}
+
+.signup-input-wrapper input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none;
+}
+
+.signup-input-wrapper input[type="password"]::-webkit-textfield-decoration-container {
+  display: none;
 }

@@ -309,7 +309,7 @@ button {
 }
 
 .network-line {
-  border-top: 2px dotted #00ff809a;
+  border-top: 2px dotted #000;
   border-radius: 50%;
   height: 75px;
   position: absolute;
@@ -394,8 +394,8 @@ section {
   border-radius: 17px;
   flex-direction: column;
   align-items: center;
-  min-height: 190px;
-  padding: 1.2rem 1.2rem 1rem;
+  min-height: 220px;
+  padding: 1.2rem 1.2rem 82px;
   animation: linear both reveal-up;
   animation-timeline: view();
   animation-range: entry cover 30%;
@@ -404,15 +404,9 @@ section {
   overflow: hidden;
 }
 
-.role-card:after {
-  content: "";
-  pointer-events: none;
-  background: linear-gradient(to top, #6ebe6459, #0000);
-  height: 55px;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+.role-card > * {
+  z-index: 2;
+  position: relative;
 }
 
 .role-card:first-child {
@@ -428,8 +422,23 @@ section {
 }
 
 .role-card.farmer {
-  background: #f0faf3;
+  background: #f0fff5;
   border: 1px solid #b9e6c8;
+}
+
+.role-card.farmer:after {
+  content: "";
+  background-image: url("/farmer_card.png");
+  background-size: 100%;
+  background-position: top bottom;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  height: 85px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .role-card.logistics {
@@ -437,9 +446,39 @@ section {
   border: 1px solid #afd3f8;
 }
 
+.role-card.logistics:after {
+  content: "";
+  background-image: url("/logistics_card.png");
+  background-size: 100%;
+  background-position: top bottom;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  height: 52px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
 .role-card.buyer {
   background: #fff7ed;
   border: 1px solid #f5c78c;
+}
+
+.role-card.buyer:after {
+  content: "";
+  background-image: url("/buyer_card.png");
+  background-size: 100%;
+  background-position: top bottom;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  height: 63px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .icon-slot-circle {
@@ -475,7 +514,9 @@ section {
 
 .role-card p {
   z-index: 2;
+  width: 100%;
   max-width: 270px;
+  min-height: 32px;
   color: var(--text-muted);
   margin: .3rem auto .8rem;
   font-size: .72rem;
@@ -484,7 +525,7 @@ section {
 }
 
 .role-btn {
-  z-index: 2;
+  z-index: 3;
   color: #fff;
   border: none;
   border-radius: 999px;
@@ -493,7 +534,7 @@ section {
   gap: .35rem;
   width: 100%;
   height: 32px;
-  margin-top: auto;
+  margin-top: .3rem;
   font-size: .68rem;
   font-weight: 700;
   display: flex;
@@ -670,7 +711,7 @@ section {
 .revenue-graphic {
   flex: 0 0 170px;
   animation: linear both reveal-left;
-  animation-timeline: scroll();
+  animation-timeline: view();
   animation-range: entry cover 35%;
 }
 

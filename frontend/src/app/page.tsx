@@ -1,16 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from "next/navigation";
+import Link from 'next/link';
 import { ArrowRight, User2, Leaf, Truck, Store, ClipboardList, Brain, ShieldCheck, TrendingUp, HandCoins, LogOut } from 'lucide-react';
 import './page.css';
 import LoginModal from '../components/LoginModal';
 import SignupModal from '../components/SignUpModal';
+import KhetLinkCarousel from "../components/KhetLinkCarousel";
+import TermsAndConditions from "../components/TermsAndConditions";
+
+const TERMS_VERSIONS = {
+  farmer: '1.0',
+  buyer: '1.0',
+  logistics: '1.0',
+} as const;
+
+type UserRole = keyof typeof TERMS_VERSIONS;
 
 export default function LandingPage() {
+  const router = useRouter();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [activeSection, setActiveSection] = useState('Home');
 
   // Check auth status on mount
   useEffect(() => {
@@ -22,6 +38,23 @@ export default function LandingPage() {
       .finally(() => setAuthChecked(true));
   }, []);
 
+  useEffect(() => {const handleScroll = () => {const sections = ['Home','How-It-Works','Benefits','Contact',];
+      const offset = 110;
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 5;
+      if (atBottom) { setActiveSection('Contact');return;}
+      let currentSection = 'Home';
+      for (const id of sections) {const section = document.getElementById(id);
+        if (!section) continue;
+        const top = section.getBoundingClientRect().top;
+        if (top <= offset) {currentSection = id;}
+      }
+      setActiveSection(currentSection);
+    };
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    return () => {window.removeEventListener('scroll', handleScroll);};
+  }, []);
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     setIsLoggedIn(false);
@@ -30,6 +63,37 @@ export default function LandingPage() {
       window.location.href = '/';
     }
   };
+
+  const handleGetStarted = () => {
+    if (isLoggedIn) {
+      document
+        .querySelector('.role-section')
+        ?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      return;
+    }
+    setIsSignupOpen(true);
+  };
+
+  const handleRoleClick = (role: UserRole) => { const storedAgreement = localStorage.getItem(`${role}TermsAgreement`);
+    if (storedAgreement) { try { const agreement = JSON.parse(storedAgreement);
+        if ( agreement.accepted === true && agreement.termsVersion === TERMS_VERSIONS[role]) {
+          if (role === 'farmer') { router.push('/farmer'); }
+          if (role === 'buyer') { router.push('/buyer'); }
+          if (role === 'logistics') { router.push('/logistics'); }
+          return;
+        }
+      } 
+      catch { localStorage.removeItem(`${role}TermsAgreement`); }
+    }
+    setSelectedRole(role);
+    setShowTerms(true);
+  };
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {setActiveSection(sectionId);};
+
   return (
     <div className="page-container">
 
@@ -48,11 +112,11 @@ export default function LandingPage() {
         </a>
 
         <div className="nav-links">
-          <a href="#Home" className="active"> Home </a>
-          <a href="#How-It-Works"> How It Works </a>
-          <a href="#Benefits"> Benefits </a>
-          <a href="#About"> About </a>
-          <a href="#Contact"> Contact </a>
+          <a href="#Home" className={activeSection === 'Home' ? 'active' : ''}> Home </a>
+          <a href="#How-It-Works" className={activeSection === 'How-It-Works' ? 'active' : ''}> How It Works </a>
+          <a href="#Benefits" className={activeSection === 'Benefits' ? 'active' : ''}> Benefits </a>
+          <a  href="/about" target="_blank" rel="noopener noreferrer"> About </a>
+          <a href="#Contact" className={activeSection === 'Contact' ? 'active' : ''}> Contact </a>
         </div>
 
         <div className="auth-btns">
@@ -87,8 +151,8 @@ export default function LandingPage() {
           </p>
 
           <div className="hero-actions">
-            <button className="btn-primary"> Get Started <ArrowRight size={16}/></button>
-            <button className="btn-secondary"> Learn More </button>
+            <button className="btn-primary" onClick={handleGetStarted}> Get Started <ArrowRight size={16}/></button>
+            <Link  href="/about" target="_blank" rel="noopener noreferrer" className="btn-secondary"> Learn More </Link>
           </div>
         </div>
 
@@ -142,24 +206,23 @@ export default function LandingPage() {
             <div className="icon-slot-circle"><img src="./Farmer.svg" alt="Farmer" width={44} height={44}/></div>
             <h3> Farmers </h3>
             <p> List your produce, reach more buyers and get better prices </p>
-            <button className="role-btn"> Continue as Farmer <ArrowRight size={16}/></button>
+            <button className="role-btn" onClick={() => handleRoleClick('farmer')}> Continue as Farmer <ArrowRight size={16}/></button>
           </div>
 
           {/* LOGISTICS */}
           <div className="role-card logistics">
             <div className="icon-slot-circle"><img src="./Logistics.svg" alt="Logistics" width={44} height={44}/></div>
             <h3> Logistics Providers </h3>
-            <p> Transport fresh produce efficiently and earn more </p>
-            <button className="role-btn"> Continue as Logistics Provider <ArrowRight size={16}/></button>
+            <p> Transport fresh produce efficiently and earn more</p>
+            <button className="role-btn" onClick={() => handleRoleClick('logistics')}> Continue as Logistics Provider <ArrowRight size={16}/></button>
           </div>
-
 
           {/* BUYER */}
           <div className="role-card buyer">
             <div className="icon-slot-circle"><img src="./Buyer.svg" alt="Buyer" width={44} height={44}/></div>
             <h3> Buyers </h3>
             <p> Get fresh produce directly from farms with guaranteed quality </p>
-            <button className="role-btn"> Continue as Buyer <ArrowRight size={16}/></button>
+            <button className="role-btn" onClick={() => handleRoleClick('buyer')}> Continue as Buyer <ArrowRight size={16}/></button>
           </div>
         </div>
       </section>
@@ -315,6 +378,8 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/*Gallery*/}
+      <KhetLinkCarousel />
 
       {/*IMPACT*/}
       <section className="impact-banner">
@@ -375,7 +440,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <button className="btn-primary cta-btn"> Get Started <ArrowRight size={16}/></button>
+          <button className="btn-primary cta-btn" onClick={handleGetStarted}> Get Started <ArrowRight size={16}/></button>
         </div>
       </section>
 
@@ -397,26 +462,26 @@ export default function LandingPage() {
           </div>
 
           <div className="footer-nav-links">
-            <a href="#Home" className="active"> Home </a>
-            <a href="#How-It-Works"> How It Works </a>
-            <a href="#Benefits"> Benefits </a>
-            <a href="#About"> About </a>
-            <a href="#Contact"> Contact </a>
+            <a href="#Home" className={activeSection === 'Home' ? 'active' : ''}> Home </a>
+            <a href="#How-It-Works" className={activeSection === 'How-It-Works' ? 'active' : ''}> How It Works </a>
+            <a href="#Benefits" className={activeSection === 'Benefits' ? 'active' : ''}> Benefits </a>
+            <a  href="/about" target="_blank" rel="noopener noreferrer"> About </a>
+            <a href="#Contact" className={activeSection === 'Contact' ? 'active' : ''}> Contact </a>
           </div>
 
           <div className="social-group">
-            <div className="social-circle">
+            <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer"><div className="social-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            </div>
-            <div className="social-circle">
+            </div></a>
+            <a href="https://x.com" target="_blank" rel="noopener noreferrer"><div className="social-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
-            </div>
-            <div className="social-circle">
+            </div></a>
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer"><div className="social-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2zM4 2a2 2 0 1 1-2 2 2 2 0 0 1 2-2z"/></svg>
-            </div>
-            <div className="social-circle">
+            </div></a>
+            <a href="https://youtube.com" target="_blank" rel="noopener noreferrer"><div className="social-circle">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33zM9.75 15.02V8.48l5.75 3.27-5.75 3.27z"/></svg>
-            </div>
+            </div></a>
           </div>
         </div>
 
@@ -428,8 +493,23 @@ export default function LandingPage() {
 
       {/* LOGIN MODAL */}
       {isLoginOpen && (<LoginModal onClose={() => setIsLoginOpen(false)} onSignUp={() => {setIsLoginOpen(false); setIsSignupOpen(true);}}/>)}
-      {/*Sigup Modal*/}
+      {/* Sigup Modal */}
       {isSignupOpen && (<SignupModal onClose={() => setIsSignupOpen(false)} onLogin={() => {setIsSignupOpen(false); setIsLoginOpen(true);}}/>)}
+      {/* Show Terms */}
+      {showTerms && selectedRole && (<TermsAndConditions role={selectedRole} onBack={() => {setShowTerms(false); setSelectedRole(null);}}
+        onAgree={() => {const agreement = {
+          accepted: true,
+          role: selectedRole,
+          termsVersion: TERMS_VERSIONS[selectedRole],
+          termsAcceptedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(`${selectedRole}TermsAgreement`,JSON.stringify(agreement));
+        setShowTerms(false);
+        if (selectedRole === 'farmer') { router.push('/farmer');}
+        if (selectedRole === 'buyer') { router.push('/buyer');}
+        if (selectedRole === 'logistics') { router.push('/logistics');}
+        setSelectedRole(null);
+      }}/>)}
     </div>
   );
 }

@@ -45,11 +45,10 @@
 .signup-close:hover {
   background: var(--primary-green);
   color: #fff;
-  transform: rotate(5deg);
 }
 
 .signup-close:active {
-  transform: rotate(5deg)translateY(1px);
+  transform: rotate(90deg)translateY(1px);
 }
 
 .signup-logo {
@@ -284,41 +283,13 @@
 .signup-landscape {
   pointer-events: none;
   z-index: 1;
-  background: linear-gradient(to top, #59c93a 0%, #a9e88b 45%, #dcf9d540 100%);
+  background: url("/SLback.png") center / cover no-repeat;
   width: 100%;
   height: 82px;
   position: absolute;
   bottom: 0;
   left: 0;
   overflow: hidden;
-}
-
-.signup-hill {
-  border-radius: 50% 50% 0 0;
-  width: 120%;
-  position: absolute;
-  left: -10%;
-}
-
-.signup-hill-back {
-  background: #d4f2ce;
-  height: 58px;
-  bottom: 28px;
-  transform: rotate(-2deg);
-}
-
-.signup-hill-middle {
-  background: #91df76;
-  height: 58px;
-  bottom: 8px;
-  transform: rotate(2deg);
-}
-
-.signup-hill-front {
-  background: #4fbd32;
-  height: 60px;
-  bottom: -20px;
-  transform: rotate(-1deg);
 }
 
 @keyframes signup-overlay-in {
@@ -434,6 +405,22 @@
   margin: -2px 0 4px 4px;
   font-size: .75rem;
   line-height: 1.4;
+}
+
+.signup-input-wrapper input[type="password"]::-ms-reveal {
+  display: none;
+}
+
+.signup-input-wrapper input[type="password"]::-ms-clear {
+  display: none;
+}
+
+.signup-input-wrapper input[type="password"]::-webkit-credentials-auto-fill-button {
+  display: none;
+}
+
+.signup-input-wrapper input[type="password"]::-webkit-textfield-decoration-container {
+  display: none;
 }
 
 /*# sourceMappingURL=src_components_SignupModal_css_1igg3k2._.single.css.map*/
