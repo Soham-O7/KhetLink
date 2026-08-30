@@ -17,7 +17,6 @@
   min-height: 100vh;
   background: var(--about-bg);
   color: var(--about-text);
-  overflow: hidden;
 }
 
 
@@ -185,7 +184,7 @@
 ===================================================== */
 
 .about-hero-content {
-  max-width: 780px;
+  max-width: 887px;
 }
 
 .about-hero-content h1 {
@@ -658,8 +657,6 @@
     0 25px 55px rgba(7, 64, 33, 0.16);
 
   color: white;
-
-  overflow: hidden;
 }
 
 .why-visual {
@@ -1608,4 +1605,294 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #8fbea0;
+}
+
+/* =====================================================
+   SCROLL-DRIVEN ANIMATIONS
+===================================================== */
+
+@keyframes about-reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(50px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes about-reveal-left {
+  from {
+    opacity: 0;
+    transform: translateX(-55px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes about-reveal-right {
+  from {
+    opacity: 0;
+    transform: translateX(70px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes about-card-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(35px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes about-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes whyVisualReveal {
+  from {
+    opacity: 0;
+    transform: translateX(-80px) scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes whyContentReveal {
+  from {
+    opacity: 0;
+    transform: translateX(80px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* =====================================================
+   HERO ANIMATION
+===================================================== */
+
+.about-hero-content {
+  animation: about-reveal-up linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+.about-brand {
+  animation: about-reveal-left linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 25%;
+}
+
+.about-hero-stats {
+  animation: about-fade-in linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+
+/* =====================================================
+   STORY ANIMATION
+===================================================== */
+
+.about-story-heading {
+  animation: about-reveal-left linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+.about-story-copy {
+  animation: about-reveal-right linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+
+/* =====================================================
+   MISSION / VISION
+===================================================== */
+
+.mission-card-main {
+  animation: about-reveal-left linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+.mission-card:not(.mission-card-main) {
+  animation: about-reveal-right linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+
+/* =====================================================
+   OBJECTIVES
+===================================================== */
+
+.objectives-heading {
+  animation: about-reveal-up linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+.objective-card {
+  animation: about-card-reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+.objective-card:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.objective-card:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.objective-card:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.objective-card:nth-child(4) {
+  animation-delay: 240ms;
+}
+
+
+/* =====================================================
+   WHY KHETLINK
+===================================================== */
+.why-visual {
+  animation: whyVisualReveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+/* =====================================================
+   WHY KHETLINK — CONTENT
+===================================================== */
+
+.why-content {
+  animation: whyContentReveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+/* =====================================================
+   FAQ
+===================================================== */
+
+.faq-header {
+  animation: about-reveal-left linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+.faq-list {
+  animation: about-reveal-right linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+
+/* =====================================================
+   DEVELOPERS
+===================================================== */
+
+.developers-heading {
+  animation: about-reveal-up linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 30%;
+}
+
+.developer-card {
+  animation: about-card-reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 40%;
+}
+
+.developer-card:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.developer-card:nth-child(2) {
+  animation-delay: 70ms;
+}
+
+.developer-card:nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.developer-card:nth-child(4) {
+  animation-delay: 210ms;
+}
+
+.developer-card:nth-child(5) {
+  animation-delay: 280ms;
+}
+
+.developer-card:nth-child(6) {
+  animation-delay: 350ms;
+}
+
+
+/* =====================================================
+   CLOSING
+===================================================== */
+
+.closing-card {
+  animation: about-card-reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 35%;
+}
+
+
+/* =====================================================
+   CONTACT
+===================================================== */
+
+.about-contact {
+  animation: about-reveal-up linear both;
+  animation-timeline: view();
+  animation-range: entry 0% cover 10%;
+}
+
+
+/* =====================================================
+   ACCESSIBILITY
+===================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  .about-page *,
+  .about-page *::before,
+  .about-page *::after {
+    animation: none;
+    transform: none;
+  }
+
 }

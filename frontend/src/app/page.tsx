@@ -80,9 +80,9 @@ export default function LandingPage() {
   const handleRoleClick = (role: UserRole) => { const storedAgreement = localStorage.getItem(`${role}TermsAgreement`);
     if (storedAgreement) { try { const agreement = JSON.parse(storedAgreement);
         if ( agreement.accepted === true && agreement.termsVersion === TERMS_VERSIONS[role]) {
-          if (role === 'farmer') { router.push('/farmer'); }
-          if (role === 'buyer') { router.push('/buyer'); }
-          if (role === 'logistics') { router.push('/logistics'); }
+          if (role === 'farmer') {window.open('/farmer', '_blank', 'noopener,noreferrer');}
+          if (role === 'buyer') { window.open('/buyer', '_blank', 'noopener,noreferrer');}
+          if (role === 'logistics') {window.open('/logistics', '_blank', 'noopener,noreferrer');}
           return;
         }
       } 
@@ -115,7 +115,7 @@ export default function LandingPage() {
           <a href="#Home" className={activeSection === 'Home' ? 'active' : ''}> Home </a>
           <a href="#How-It-Works" className={activeSection === 'How-It-Works' ? 'active' : ''}> How It Works </a>
           <a href="#Benefits" className={activeSection === 'Benefits' ? 'active' : ''}> Benefits </a>
-          <a  href="/about" target="_blank" rel="noopener noreferrer"> About </a>
+          <a  href="/about" rel="noopener noreferrer"> About </a>
           <a href="#Contact" className={activeSection === 'Contact' ? 'active' : ''}> Contact </a>
         </div>
 
@@ -465,7 +465,7 @@ export default function LandingPage() {
             <a href="#Home" className={activeSection === 'Home' ? 'active' : ''}> Home </a>
             <a href="#How-It-Works" className={activeSection === 'How-It-Works' ? 'active' : ''}> How It Works </a>
             <a href="#Benefits" className={activeSection === 'Benefits' ? 'active' : ''}> Benefits </a>
-            <a  href="/about" target="_blank" rel="noopener noreferrer"> About </a>
+            <a  href="/about" rel="noopener noreferrer"> About </a>
             <a href="#Contact" className={activeSection === 'Contact' ? 'active' : ''}> Contact </a>
           </div>
 

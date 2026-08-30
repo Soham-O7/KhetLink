@@ -1,0 +1,33 @@
+/* =========================================================
+   KHETLINK BUYER ROUTE
+   Page-level styles only.
+   Component styling lives in components/Buyer.css.
+   ========================================================= */
+
+.buyer-route {
+  min-height: 100vh;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #f6faf7;
+}
+
+.buyer-route,
+.buyer-route * {
+  box-sizing: border-box;
+}
+
+.buyer-route button,
+.buyer-route input,
+.buyer-route select,
+.buyer-route textarea {
+  font: inherit;
+}
+
+.buyer-route button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.buyer-route img {
+  max-width: 100%;
+}
