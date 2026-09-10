@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ChangeEvent,
   type ReactNode,
 } from "react";
@@ -67,7 +68,7 @@ import {
 } from "recharts";
 
 import "./Buyer.css";
-
+import Link from "next/link";
 /* =========================================================
    TYPES
 ========================================================= */
@@ -75,14 +76,13 @@ import "./Buyer.css";
 type View =
   | "Dashboard"
   | "Marketplace"
-  | "Procurement"
   | "Orders"
   | "Shipment"
   | "Analytics"
   | "Help"
   | "Profile";
 
-type OrderType = "Marketplace" | "Procurement";
+type OrderType = "Marketplace";
 
 type OrderStatus =
   | "Confirmed"
@@ -108,7 +108,7 @@ type OfferStatus =
   | "Rejected";
 
 type AnalyticsRange = "week" | "month" | "custom";
-type RequirementUnit = "g" | "kg" | "ton";
+type RequirementUnit = "kg" | "L" | "ton" | "dozen";
 
 interface FarmerListing {
   id: string;
@@ -185,6 +185,10 @@ interface FarmerOffer {
   farmerId: string;
   selectedListingIds: string[];
   selectedQuantities?: Record<string, number>;
+  productId?: string;
+  requestedQuantity?: number;
+  requestedUnit?: RequirementUnit;
+  originalPrice?: number;
   offeredPrice: number;
   buyerConfirmed: boolean;
   farmerConfirmed: boolean;
@@ -204,6 +208,16 @@ interface Order {
   buyerId: string;
   deliveryDate: string;
   status: OrderStatus;
+  createdAt: string;
+}
+
+interface FarmerReview {
+  id: string;
+  farmerId: string;
+  orderId: string;
+  buyerName: string;
+  rating: number;
+  comment: string;
   createdAt: string;
 }
 
@@ -248,8 +262,8 @@ const MOCK_FARMERS: Farmer[] = [
     phoneNumber: "+91 98765 11001",
     location: "Nashik, Maharashtra",
     distanceKm: 14,
-    rating: 4.8,
-    reviews: 126,
+    rating: 0,
+    reviews: 0,
     verified: true,
     avatar: "RK",
     farm: "Kumar Fresh Farms",
@@ -285,8 +299,8 @@ const MOCK_FARMERS: Farmer[] = [
     phoneNumber: "+91 98765 11002",
     location: "Pune, Maharashtra",
     distanceKm: 38,
-    rating: 4.6,
-    reviews: 94,
+    rating: 0,
+    reviews: 0,
     verified: true,
     avatar: "SP",
     farm: "Patil Agro Farm",
@@ -322,8 +336,8 @@ const MOCK_FARMERS: Farmer[] = [
     phoneNumber: "+91 98765 11003",
     location: "Ahmednagar, Maharashtra",
     distanceKm: 61,
-    rating: 4.9,
-    reviews: 182,
+    rating: 0,
+    reviews: 0,
     verified: true,
     avatar: "AS",
     farm: "Sharma Organic Fields",
@@ -359,8 +373,8 @@ const MOCK_FARMERS: Farmer[] = [
     phoneNumber: "+91 98765 11004",
     location: "Satara, Maharashtra",
     distanceKm: 74,
-    rating: 4.5,
-    reviews: 71,
+    rating: 0,
+    reviews: 0,
     verified: false,
     avatar: "VM",
     farm: "More Vegetable Farm",
@@ -393,10 +407,25 @@ const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN")}`;
 
 const toKg = (quantity: number, unit: RequirementUnit = "kg") => {
-  if (unit === "g") return quantity / 1000;
   if (unit === "ton") return quantity * 1000;
+  if (unit === "dozen") return quantity * 12;
+  // For liquid listings, keep 1 L as the working 1 kg equivalent in this mock catalog.
+  if (unit === "L") return quantity;
   return quantity;
 };
+
+const fromKg = (quantityKg: number, unit: RequirementUnit = "kg") => {
+  if (unit === "ton") return quantityKg / 1000;
+  if (unit === "dozen") return quantityKg / 12;
+  return quantityKg;
+};
+
+const minimumQuantityForUnit = (unit: RequirementUnit) => fromKg(100, unit);
+
+const pricePerSelectedUnit = (pricePerKg: number, unit: RequirementUnit) =>
+  unit === "ton" ? pricePerKg * 1000 :
+  unit === "dozen" ? pricePerKg * 12 :
+  pricePerKg;
 
 const formatQuantity = (quantity: number, unit: RequirementUnit = "kg") =>
   `${Number.isInteger(quantity) ? quantity : Number(quantity.toFixed(2))} ${unit}`;
@@ -601,10 +630,6 @@ const navItems: {
     icon: Store,
   },
   {
-    label: "Procurement",
-    icon: ClipboardList,
-  },
-  {
     label: "Orders",
     icon: ShoppingCart,
   },
@@ -632,7 +657,6 @@ const navItems: {
 const VIEW_QUERY_VALUES: Record<Exclude<View, "Profile"> | "Profile", string> = {
   Dashboard: "dashboard",
   Marketplace: "marketplace",
-  Procurement: "procurement",
   Orders: "orders",
   Shipment: "shipment",
   Analytics: "analytics",
@@ -644,6 +668,9 @@ const viewFromLocation = (): View => {
   if (typeof window === "undefined") return "Dashboard";
 
   const value = new URLSearchParams(window.location.search).get("view");
+
+  if (value === "procurement") return "Marketplace";
+
   const match = (Object.keys(VIEW_QUERY_VALUES) as View[]).find(
     (view) => VIEW_QUERY_VALUES[view] === value,
   );
@@ -665,7 +692,7 @@ const viewHref = (view: View) => {
 
 export default function Buyer() {
   const [activeTab, setActiveTab] =
-    useState<View>(() => viewFromLocation());
+  useState<View>("Dashboard");
 
   const [session, setSession] =
     useState<BuyerSession>(MOCK_BUYER);
@@ -679,9 +706,6 @@ export default function Buyer() {
   const [selectedFarmer, setSelectedFarmer] =
     useState<Farmer | null>(null);
 
-  const [selectedProduct, setSelectedProduct] =
-    useState<Product | null>(null);
-
   const [cart, setCart] =
     useState<CartItem[]>([]);
 
@@ -693,6 +717,9 @@ export default function Buyer() {
 
   const [orders, setOrders] =
     useState<Order[]>([]);
+
+  const [farmerReviews, setFarmerReviews] =
+    useState<FarmerReview[]>([]);
 
   const [notifications, setNotifications] =
     useState<Notification[]>([]);
@@ -720,9 +747,6 @@ export default function Buyer() {
 
   const [marketplaceSearch, setMarketplaceSearch] =
     useState("");
-
-  const [showCart, setShowCart] =
-    useState(false);
 
   /* -------------------------------------------------------
      INITIAL MOCK STATE
@@ -810,11 +834,11 @@ export default function Buyer() {
     );
 
     const fruits: Product[] = [
-      { id: "P-FR-1", listingId: "FR-1", farmerId: "FAR-1001", farmerName: "Rajesh Kumar", name: "Mango", category: "Fruits", quantityAvailable: 180, pricePerKg: 95, rating: 4.8, reviews: 126, deliveryTime: "1–2 days", image: getProductImage("Mango") },
-      { id: "P-FR-2", listingId: "FR-2", farmerId: "FAR-1002", farmerName: "Suresh Patil", name: "Banana", category: "Fruits", quantityAvailable: 320, pricePerKg: 48, rating: 4.6, reviews: 94, deliveryTime: "1 day", image: getProductImage("Banana") },
-      { id: "P-FR-3", listingId: "FR-3", farmerId: "FAR-1003", farmerName: "Anita Sharma", name: "Apple", category: "Fruits", quantityAvailable: 140, pricePerKg: 125, rating: 4.9, reviews: 182, deliveryTime: "2–3 days", image: getProductImage("Apple") },
-      { id: "P-FR-4", listingId: "FR-4", farmerId: "FAR-1004", farmerName: "Vijay More", name: "Orange", category: "Fruits", quantityAvailable: 220, pricePerKg: 68, rating: 4.5, reviews: 71, deliveryTime: "1–2 days", image: getProductImage("Orange") },
-      { id: "P-FR-5", listingId: "FR-5", farmerId: "FAR-1003", farmerName: "Anita Sharma", name: "Grapes", category: "Fruits", quantityAvailable: 110, pricePerKg: 82, rating: 4.9, reviews: 182, deliveryTime: "2 days", image: getProductImage("Grapes") },
+      { id: "P-FR-1", listingId: "FR-1", farmerId: "FAR-1001", farmerName: "Rajesh Kumar", name: "Mango", category: "Fruits", quantityAvailable: 180, pricePerKg: 95, rating: 0, reviews: 0, deliveryTime: "1–2 days", image: getProductImage("Mango") },
+      { id: "P-FR-2", listingId: "FR-2", farmerId: "FAR-1002", farmerName: "Suresh Patil", name: "Banana", category: "Fruits", quantityAvailable: 320, pricePerKg: 48, rating: 0, reviews: 0, deliveryTime: "1 day", image: getProductImage("Banana") },
+      { id: "P-FR-3", listingId: "FR-3", farmerId: "FAR-1003", farmerName: "Anita Sharma", name: "Apple", category: "Fruits", quantityAvailable: 140, pricePerKg: 125, rating: 0, reviews: 0, deliveryTime: "2–3 days", image: getProductImage("Apple") },
+      { id: "P-FR-4", listingId: "FR-4", farmerId: "FAR-1004", farmerName: "Vijay More", name: "Orange", category: "Fruits", quantityAvailable: 220, pricePerKg: 68, rating: 0, reviews: 0, deliveryTime: "1–2 days", image: getProductImage("Orange") },
+      { id: "P-FR-5", listingId: "FR-5", farmerId: "FAR-1003", farmerName: "Anita Sharma", name: "Grapes", category: "Fruits", quantityAvailable: 110, pricePerKg: 82, rating: 0, reviews: 0, deliveryTime: "2 days", image: getProductImage("Grapes") },
     ];
 
     return [...base, ...fruits];
@@ -854,22 +878,33 @@ export default function Buyer() {
   ------------------------------------------------------- */
 
   const navigate = (view: View) => {
-    setActiveTab(view);
     setMobileMenuOpen(false);
     setNotificationOpen(false);
 
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (view === "Dashboard") {
-        url.searchParams.delete("view");
-      } else {
-        url.searchParams.set("view", VIEW_QUERY_VALUES[view]);
-      }
-      window.history.pushState({ view }, "", `${url.pathname}${url.search}${url.hash}`);
+    if (typeof window === "undefined") {
+      setActiveTab(view);
+      return;
     }
+
+    // Use the same real URL that the navigation links expose.  Updating the
+    // address bar and then notifying the view listener keeps navigation,
+    // back/forward, and a hard refresh on the selected page in sync.
+    const url = new URL(window.location.href);
+    if (view === "Dashboard") {
+      url.searchParams.delete("view");
+    } else {
+      url.searchParams.set("view", VIEW_QUERY_VALUES[view]);
+    }
+
+    const href = `${url.pathname}${url.search}${url.hash}`;
+    window.history.pushState({ view }, "", href);
+    setActiveTab(viewFromLocation());
+    window.dispatchEvent(new PopStateEvent("popstate"));
   };
 
   useEffect(() => {
+    setActiveTab(viewFromLocation());
+
     const handlePopState = () => {
       setActiveTab(viewFromLocation());
       setMobileMenuOpen(false);
@@ -877,20 +912,49 @@ export default function Buyer() {
     };
 
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, []);
 
-  useEffect(() => {
-    if (orders.length === 0) return;
-    const timers = orders.filter((order) => order.status === "Confirmed").map((order) => {
-      const delay = 2000 + Math.floor(Math.random() * 5000);
-      return window.setTimeout(() => {
-        const next = ["Processing", "In Transit", "Delivered"][Math.floor(Math.random() * 3)] as OrderStatus;
-        setOrders((current) => current.map((item) => item.id === order.id && item.status === "Confirmed" ? { ...item, status: next } : item));
-      }, delay);
-    });
-    return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [orders.length]);
+  const processedConfirmedOrders = useRef<Set<string>>(new Set());
+
+useEffect(() => {
+  const newConfirmedOrders = orders.filter(
+    (order) =>
+      order.status === "Confirmed" &&
+      !processedConfirmedOrders.current.has(order.id),
+  );
+
+  if (newConfirmedOrders.length === 0) return;
+
+  const timers = newConfirmedOrders.map((order) => {
+    // Mark it immediately so this order can NEVER be scheduled twice.
+    processedConfirmedOrders.current.add(order.id);
+
+    const delay = 2000 + Math.floor(Math.random() * 5000);
+
+    return window.setTimeout(() => {
+      const next =
+        ["Confirmed", "Processing", "In Transit", "Delivered"][
+          Math.floor(Math.random() * 4)
+        ] as OrderStatus;
+
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id && item.status === "Confirmed"
+            ? { ...item, status: next }
+            : item,
+        ),
+      );
+    }, delay);
+  });
+
+  return () => {
+    timers.forEach((timer) => window.clearTimeout(timer));
+  };
+}, [orders]);
 
   /* -------------------------------------------------------
      CART
@@ -944,7 +1008,6 @@ export default function Buyer() {
       ];
     });
 
-    setSelectedProduct(null);
     showToast(
       `${product.name} added to your cart.`,
     );
@@ -1036,7 +1099,6 @@ export default function Buyer() {
     });
 
     setCart([]);
-    setShowCart(false);
 
     showToast(
       "Purchase successful. Your orders are confirmed.",
@@ -1051,7 +1113,7 @@ export default function Buyer() {
     useState<RequirementItem>({
       id: "",
       produce: "",
-      quantity: 1,
+      quantity: 100,
       unit: "kg",
       minPrice: 1,
       maxPrice: 100,
@@ -1066,7 +1128,7 @@ export default function Buyer() {
     setRequirementForm({
       id: "",
       produce: "",
-      quantity: 1,
+      quantity: 100,
       unit: "kg",
       minPrice: 1,
       maxPrice: 100,
@@ -1086,10 +1148,8 @@ export default function Buyer() {
       return;
     }
 
-    if (requirementForm.quantity <= 0) {
-      showToast(
-        "Quantity must be greater than zero.",
-      );
+    if (toKg(requirementForm.quantity, requirementForm.unit ?? "kg") < 100) {
+      showToast("Minimum quantity is 100 kg equivalent.");
       return;
     }
 
@@ -1291,7 +1351,11 @@ export default function Buyer() {
           : item,
       ),
     );
-
+    if (matchedFarmers.length === 0) {
+  window.setTimeout(() => {
+    dismissRequirement(requirementId);
+  }, 3000);
+}
     showToast(
       matchedFarmers.length > 0
         ? `${matchedFarmers.length} matching farmers found.`
@@ -1430,6 +1494,7 @@ export default function Buyer() {
       offeredPrice: Math.round(
         averagePrice,
       ),
+      originalPrice: Math.round(averagePrice),
       buyerConfirmed: false,
       farmerConfirmed: false,
       status: "Requested",
@@ -1452,8 +1517,102 @@ export default function Buyer() {
     });
 
     showToast(
-      `Request sent to ${farmer.name}.`,
+      `Request sent to ${farmer.name}. Waiting for farmer response…`,
     );
+    scheduleMarketplaceFarmerResponse(requirement.id, farmer.id, newOffer.offeredPrice, false);
+  };
+
+  const scheduleMarketplaceFarmerResponse = (
+    requirementId: string,
+    farmerId: string,
+    buyerPrice: number,
+    allowCounter = false,
+  ) => {
+    const farmer = MOCK_FARMERS.find((item) => item.id === farmerId);
+    if (!farmer) return;
+
+    const delay = 900 + Math.floor(Math.random() * 1600);
+    window.setTimeout(() => {
+      const currentPrice = Math.max(1, buyerPrice);
+      const outcome = Math.random();
+
+      if (!allowCounter && outcome < 0.72) {
+        setOffers((current) =>
+          current.map((item) =>
+            item.requirementId === requirementId && item.farmerId === farmerId
+              ? { ...item, offeredPrice: currentPrice, farmerConfirmed: true, buyerConfirmed: false, status: "Negotiating" }
+              : item,
+          ),
+        );
+        pushNotification({
+          title: "Farmer accepted",
+          message: `${farmer.name} accepted ${formatCurrency(currentPrice)}.`,
+          type: "order",
+        });
+        showToast(`${farmer.name} accepted ${formatCurrency(currentPrice)}.`);
+        return;
+      }
+
+      if (allowCounter && outcome < 0.32) {
+        setOffers((current) =>
+          current.map((item) =>
+            item.requirementId === requirementId && item.farmerId === farmerId
+              ? { ...item, offeredPrice: currentPrice, farmerConfirmed: true, buyerConfirmed: false, status: "Negotiating" }
+              : item,
+          ),
+        );
+        pushNotification({
+          title: "Farmer accepted your negotiated price",
+          message: `${farmer.name} accepted ${formatCurrency(currentPrice)}.`,
+          type: "order",
+        });
+        showToast(`${farmer.name} accepted your negotiated price.`);
+        return;
+      }
+
+      if (allowCounter && outcome < 0.86) {
+        const offer = offers.find(
+          (item) => item.requirementId === requirementId && item.farmerId === farmerId,
+        );
+        const originalPrice = Math.max(1, offer?.originalPrice ?? currentPrice);
+        const negotiatedPrice = Math.max(1, currentPrice);
+        const lowerPrice = Math.min(originalPrice, negotiatedPrice);
+        const upperPrice = Math.max(originalPrice, negotiatedPrice);
+        const counter =
+          lowerPrice === upperPrice
+            ? lowerPrice
+            : Math.round(lowerPrice + Math.random() * (upperPrice - lowerPrice));
+        setOffers((current) =>
+          current.map((item) =>
+            item.requirementId === requirementId && item.farmerId === farmerId
+              ? { ...item, offeredPrice: counter, originalPrice: item.originalPrice ?? originalPrice, farmerConfirmed: true, buyerConfirmed: false, status: "Negotiating" }
+              : item,
+          ),
+        );
+        pushNotification({
+          title: "Farmer sent a counter offer",
+          message: `${farmer.name} countered at ${formatCurrency(counter)}.`,
+          type: "order",
+        });
+        showToast(`${farmer.name} countered at ${formatCurrency(counter)}.`);
+        return;
+      }
+
+      setOffers((current) =>
+        current.map((item) =>
+          item.requirementId === requirementId && item.farmerId === farmerId
+            ? { ...item, offeredPrice: currentPrice, farmerConfirmed: false, buyerConfirmed: false, status: "Rejected" }
+            : item,
+        ),
+      );
+      clearMarketplaceOfferAfterDelay(requirementId, farmerId);
+      pushNotification({
+        title: "Farmer declined",
+        message: `${farmer.name} declined the request at ${formatCurrency(currentPrice)}.`,
+        type: "order",
+      });
+      showToast(`${farmer.name} declined the request.`);
+    }, delay);
   };
 
   const negotiateOffer = (
@@ -1462,105 +1621,102 @@ export default function Buyer() {
     price: number,
   ) => {
     const offer = offers.find((item) => item.requirementId === requirementId && item.farmerId === farmerId);
-    const farmer = MOCK_FARMERS.find((item) => item.id === farmerId);
-    const originalPrice = offer?.offeredPrice ?? farmer?.listings[0]?.pricePerKg ?? price;
-    const negotiatedPrice = Math.max(1, price);
+    if (!offer) return;
+    const negotiatedPrice = Math.max(1, Number(price) || offer.offeredPrice);
 
-    if (negotiatedPrice === originalPrice) {
-      setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, offeredPrice: originalPrice, status: "Negotiating", farmerConfirmed: true, buyerConfirmed: false } : item));
-      pushNotification({ title: "Negotiation accepted", message: `${farmer?.name ?? "Farmer"} accepted the original price of ${formatCurrency(originalPrice)}/kg.`, type: "order" });
-      showToast("The negotiated price matches the original price.");
-      return;
-    }
+    setOffers((current) =>
+      current.map((item) =>
+        item.requirementId === requirementId && item.farmerId === farmerId
+          ? {
+              ...item,
+              offeredPrice: negotiatedPrice,
+              originalPrice: item.originalPrice ?? item.offeredPrice,
+              buyerConfirmed: false,
+              farmerConfirmed: false,
+              status: "Negotiating",
+            }
+          : item,
+      ),
+    );
 
-    const outcome = Math.random();
-    if (negotiatedPrice > originalPrice || outcome < 0.34) {
-      setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, offeredPrice: negotiatedPrice, status: "Negotiating", farmerConfirmed: true, buyerConfirmed: false } : item));
-      pushNotification({ title: "Negotiated price accepted", message: `${farmer?.name ?? "Farmer"} accepted ${formatCurrency(negotiatedPrice)}/kg.`, type: "order" });
-      showToast("Farmer accepted your negotiated price.");
-      return;
-    }
-
-    if (outcome < 0.67) {
-      const counter = Math.max(1, Math.round(negotiatedPrice + Math.random() * (originalPrice - negotiatedPrice)));
-      setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, offeredPrice: counter, status: "Negotiating", farmerConfirmed: false, buyerConfirmed: false } : item));
-      pushNotification({ title: "Farmer counter offer", message: `${farmer?.name ?? "Farmer"} countered at ${formatCurrency(counter)}/kg.`, type: "order" });
-      showToast(`Farmer countered at ${formatCurrency(counter)}/kg.`);
-      return;
-    }
-
-    setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, offeredPrice: negotiatedPrice, status: "Rejected", farmerConfirmed: false, buyerConfirmed: false } : item));
-    pushNotification({ title: "Negotiation declined", message: `${farmer?.name ?? "Farmer"} declined the negotiated price.`, type: "order" });
-    showToast("Farmer declined the negotiated price.");
+    pushNotification({
+      title: "Negotiation sent",
+      message: `Your negotiated price of ${formatCurrency(negotiatedPrice)} was sent to the farmer.`,
+      type: "order",
+    });
+    showToast("Negotiated price sent. Waiting for the farmer…");
+    scheduleMarketplaceFarmerResponse(requirementId, farmerId, negotiatedPrice, true);
   };
 
   const farmerAcceptOffer = (
     requirementId: string,
     farmerId: string,
   ) => {
+    // Used by the existing procurement/matched-farmer flow. Marketplace cards
+    // use the automatic farmer-response event above and never expose this action.
     const offer = offers.find((item) => item.requirementId === requirementId && item.farmerId === farmerId);
-    const farmer = MOCK_FARMERS.find((item) => item.id === farmerId);
-    if (Math.random() < 0.2) {
-      setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, status: "Rejected", farmerConfirmed: false } : item));
-      pushNotification({ title: "Farmer declined", message: `${farmer?.name ?? "Farmer"} declined the request.`, type: "order" });
-      showToast("Farmer declined the request.");
-      return;
-    }
+    if (!offer) return;
     setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, farmerConfirmed: true, status: item.buyerConfirmed ? "Accepted" : "Negotiating" } : item));
-    pushNotification({ title: "Farmer accepted price", message: `${farmer?.name ?? "Farmer"} accepted at ${formatCurrency(offer?.offeredPrice ?? 0)}/kg.`, type: "order" });
-    showToast("Farmer accepted the current price.");
   };
 
   const finalizeProcurementOrder = (
     requirementId: string,
     farmerId: string,
   ) => {
-    const requirement =
-      requirements.find(
-        (item) => item.id === requirementId,
-      );
+    const requirement = requirements.find((item) => item.id === requirementId);
+    const offer = offers.find((item) => item.requirementId === requirementId && item.farmerId === farmerId);
+    const farmer = MOCK_FARMERS.find((item) => item.id === farmerId);
 
-    const offer = offers.find(
-      (item) =>
-        item.requirementId ===
-          requirementId &&
-        item.farmerId === farmerId,
-    );
+    if (!offer || !farmer) return;
 
-    const farmer =
-      MOCK_FARMERS.find(
-        (item) => item.id === farmerId,
-      );
+    const marketplaceProduct = offer.productId
+      ? products.find((item) => item.id === offer.productId)
+      : undefined;
 
-    if (
-      !requirement ||
-      !offer ||
-      !farmer
-    ) {
-      return;
-    }
+    const effectiveRequirement: Requirement | null = requirement ?? (marketplaceProduct ? {
+      id: requirementId,
+      buyerId: session.buyerId,
+      createdAt: new Date().toISOString(),
+      status: "Matched",
+      items: [{
+        id: `${requirementId}-ITEM`,
+        produce: marketplaceProduct.name,
+        quantity: offer.requestedQuantity ?? 1,
+        unit: offer.requestedUnit ?? "kg",
+        minPrice: marketplaceProduct.pricePerKg,
+        maxPrice: marketplaceProduct.pricePerKg,
+        requiredBy: futureDate(7),
+        location: farmer.location,
+      }],
+    } : null);
 
+    if (!effectiveRequirement) return;
+
+    // Marketplace offers may use the catalog listing id, so finalize also matches the farmer listing by product name.
     const listings =
       farmer.listings.filter(
         (listing) =>
-          offer.selectedListingIds.includes(
-            listing.id,
-          ),
+          (offer.selectedListingIds.includes(listing.id) ||
+            (marketplaceProduct &&
+              listing.produce.toLowerCase() ===
+                marketplaceProduct.name.toLowerCase())),
       );
 
     const matchedItems =
-      requirement.items.filter(
-        (item) =>
-          listings.some(
-            (listing) =>
-              listing.produce.toLowerCase() ===
-              item.produce.toLowerCase(),
-          ),
-      );
+      marketplaceProduct
+        ? effectiveRequirement.items
+        : effectiveRequirement.items.filter(
+            (item) =>
+              listings.some(
+                (listing) =>
+                  listing.produce.toLowerCase() ===
+                  item.produce.toLowerCase(),
+              ),
+          );
 
     if (matchedItems.length === 0) {
       showToast(
-        "No selected procurement items found.",
+        "No selected request items found.",
       );
       return;
     }
@@ -1568,12 +1724,30 @@ export default function Buyer() {
     const newOrders: Order[] =
       matchedItems.map(
         (item, index) => ({
-          id: `${requirement.id}-O${Date.now()}-${index + 1}`,
-          type: "Procurement",
+          id: `${effectiveRequirement.id}-O${Date.now()}-${index + 1}`,
+          type: "Marketplace",
           product: item.produce,
-          quantity: Math.max(0.01, toKg(offer.selectedQuantities?.[item.id] ?? item.quantity, item.unit ?? "kg")),
+          quantity: Math.max(0.01, toKg(
+            offer.selectedQuantities?.[
+              marketplaceProduct?.listingId ?? item.id
+            ] ??
+              offer.requestedQuantity ??
+              item.quantity,
+            item.unit ?? "kg",
+          )),
           unit: "kg",
-          cost: Math.max(0.01, toKg(offer.selectedQuantities?.[item.id] ?? item.quantity, item.unit ?? "kg")) * offer.offeredPrice,
+          cost: Math.max(0.01, toKg(
+            offer.selectedQuantities?.[
+              marketplaceProduct?.listingId ?? item.id
+            ] ??
+              offer.requestedQuantity ??
+              item.quantity,
+            item.unit ?? "kg",
+          )) *
+            (offer.requestedUnit
+              ? offer.offeredPrice /
+                (toKg(1, offer.requestedUnit) || 1)
+              : offer.offeredPrice),
           seller: farmer.name,
           sellerId: farmer.id,
           buyer: session.username,
@@ -1591,17 +1765,39 @@ export default function Buyer() {
       ...current,
     ]);
 
+    if (requirement) {
+  const alreadyFulfilled = orders
+    .filter((order) => order.id.startsWith(`${requirementId}-O`))
+    .reduce((sum, order) => sum + order.quantity, 0);
+
+  const newlyFulfilled = newOrders.reduce(
+    (sum, order) => sum + order.quantity,
+    0,
+  );
+
+  const requiredQuantity = requirement.items.reduce(
+    (sum, reqItem) =>
+      sum + toKg(reqItem.quantity, reqItem.unit ?? "kg"),
+    0,
+  );
+
+  const isFullyFulfilled =
+    alreadyFulfilled + newlyFulfilled >= requiredQuantity;
+
+  if (isFullyFulfilled) {
+    window.setTimeout(() => {
+      dismissRequirement(requirementId);
+    }, 3000);
+  } else {
     setRequirements((current) =>
-      current.map((item) => {
-        if (item.id !== requirementId) return item;
-        const alreadyFulfilled = orders
-          .filter((order) => order.id.startsWith(`${requirementId}-O`))
-          .reduce((sum, order) => sum + order.quantity, 0);
-        const newlyFulfilled = newOrders.reduce((sum, order) => sum + order.quantity, 0);
-        const requiredQuantity = item.items.reduce((sum, reqItem) => sum + toKg(reqItem.quantity, reqItem.unit ?? "kg"), 0);
-        return { ...item, status: alreadyFulfilled + newlyFulfilled >= requiredQuantity ? "Confirmed" : "Matched" };
-      }),
+      current.map((item) =>
+        item.id === requirementId
+          ? { ...item, status: "Matched" }
+          : item,
+      ),
     );
+  }
+}
 
     setOffers((current) =>
       current.map((item) =>
@@ -1617,31 +1813,84 @@ export default function Buyer() {
           : item,
       ),
     );
+    clearMarketplaceOfferAfterDelay(requirementId, farmerId);
 
     newOrders.forEach((order) => {
       pushNotification({
         title:
-          "Procurement order confirmed",
-        message: `${order.product} from ${order.seller} is confirmed under ${requirementId}.`,
+          "Marketplace order confirmed",
+        message: `${order.product} from ${order.seller} is confirmed as a Marketplace order under ${requirementId}.`,
         type: "order",
       });
     });
 
     showToast(
-      "Both parties confirmed. Procurement order created.",
+      "Both parties confirmed. Marketplace order created.",
     );
+  };
+
+  const clearMarketplaceOfferAfterDelay = (requirementId: string, farmerId: string) => {
+    window.setTimeout(() => {
+      setOffers((current) =>
+        current.filter(
+          (item) => !(
+            item.productId &&
+            item.requirementId === requirementId &&
+            item.farmerId === farmerId
+          ),
+        ),
+      );
+    }, 4500);
   };
 
   const declineOffer = (requirementId: string, farmerId: string) => {
     const farmer = MOCK_FARMERS.find((item) => item.id === farmerId);
     setOffers((current) => current.map((item) => item.requirementId === requirementId && item.farmerId === farmerId ? { ...item, status: "Rejected", buyerConfirmed: false, farmerConfirmed: false } : item));
+    clearMarketplaceOfferAfterDelay(requirementId, farmerId);
     pushNotification({ title: "Negotiation declined", message: `You declined the offer from ${farmer?.name ?? "farmer"}.`, type: "order" });
     showToast("Offer declined.");
   };
 
   const closeRequirement = (requirementId: string) => {
-    setRequirements((current) => current.map((item) => item.id === requirementId ? { ...item, status: "Closed" } : item));
-    showToast("Requirement closed.");
+  setRequirements((current) =>
+    current.map((requirement) =>
+      requirement.id === requirementId
+        ? { ...requirement, status: "Closed" }
+        : requirement,
+    ),
+  );
+
+  window.setTimeout(() => {
+    dismissRequirement(requirementId);
+  }, 3000);
+
+  showToast("Requirement closed.");
+};
+
+const dismissRequirement = (requirementId: string) => {
+  setRequirements((current) =>
+    current.filter(
+      (requirement) => requirement.id !== requirementId,
+    ),
+  );
+};
+
+  const submitFarmerReview = (order: Order, rating: number, comment: string) => {
+    const trimmed = comment.trim();
+    if (!rating || !trimmed) {
+      showToast("Please select a rating and write a review.");
+      return false;
+    }
+    if (farmerReviews.some((review) => review.orderId === order.id)) {
+      showToast("You have already reviewed this order.");
+      return false;
+    }
+    setFarmerReviews((current) => [
+      { id: createId("REVIEW"), farmerId: order.sellerId, orderId: order.id, buyerName: session.username, rating, comment: trimmed, createdAt: new Date().toISOString() },
+      ...current,
+    ]);
+    showToast("Review submitted successfully.");
+    return true;
   };
 
   /* -------------------------------------------------------
@@ -1795,23 +2044,20 @@ export default function Buyer() {
     "#ef8b2c",
     "#9ca3af",
   ];
+  const statuses: OrderStatus[] = [
+    "Confirmed",
+    "Processing",
+    "In Transit",
+    "Delivered",
+  ];
 
-  const map = new Map<string, number>();
-
-  analyticsOrders.forEach((order) => {
-    map.set(
-      order.status,
-      (map.get(order.status) ?? 0) + 1,
-    );
-  });
-
-  return Array.from(map.entries()).map(
-    ([name, value], index) => ({
-      name,
-      value,
-      fill: colors[index % colors.length],
-    }),
-  );
+  return statuses.map((name, index) => ({
+    name,
+    value: analyticsOrders.filter(
+      (order) => order.status === name,
+    ).length,
+    fill: colors[index],
+  }));
 }, [analyticsOrders]);
 
   /* -------------------------------------------------------
@@ -1873,6 +2119,40 @@ export default function Buyer() {
       marketplaceSearch,
     ]);
 
+  const addMarketplaceProductToRequirement = (
+    product: Product,
+    quantity: number,
+    unit: RequirementUnit,
+  ) => {
+    const farmer = MOCK_FARMERS.find((item) => item.id === product.farmerId);
+    if (!farmer) return;
+    const safeQuantity = Math.min(
+      fromKg(product.quantityAvailable, unit),
+      Math.max(minimumQuantityForUnit(unit), quantity),
+    );
+    const requirementId = `MARKETPLACE-${product.id}`;
+    const existingOffer = offers.find((item) => item.requirementId === requirementId && item.farmerId === farmer.id && item.status !== "Accepted" && item.status !== "Rejected");
+    const newOffer: FarmerOffer = {
+      id: existingOffer?.id ?? createId("OFFER"),
+      requirementId,
+      farmerId: farmer.id,
+      productId: product.id,
+      selectedListingIds: [product.listingId],
+      selectedQuantities: { [product.listingId]: safeQuantity },
+      requestedQuantity: safeQuantity,
+      requestedUnit: unit,
+      offeredPrice: pricePerSelectedUnit(product.pricePerKg, unit),
+      originalPrice: pricePerSelectedUnit(product.pricePerKg, unit),
+      buyerConfirmed: false,
+      farmerConfirmed: false,
+      status: "Requested",
+    };
+    setOffers((current) => existingOffer ? current.map((item) => item.id === existingOffer.id ? newOffer : item) : [newOffer, ...current]);
+    pushNotification({ title: "Request sent to farmer", message: `Your ${formatQuantity(safeQuantity, unit)} request was sent to ${farmer.name}.`, type: "order" });
+    showToast(`Request sent to ${farmer.name}. Waiting for farmer response…`);
+    scheduleMarketplaceFarmerResponse(requirementId, farmer.id, newOffer.offeredPrice, false);
+  };
+
   /* -------------------------------------------------------
      RENDER
   ------------------------------------------------------- */
@@ -1896,35 +2176,17 @@ export default function Buyer() {
         onProfile={() =>
           navigate("Profile")
         }
-        onNotifications={() => {
-          setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-          setNotificationOpen((value) => !value);
+        onNotifications={() => {setNotificationOpen((value) => !value);}}
+        onMarkNotifications={() => {
+          setNotifications((current) =>
+            current.map((notification) => ({
+              ...notification,
+              read: true,
+            })),
+          );
+          setNotificationOpen(false);
         }}
-        onMarkNotifications={() =>
-          setNotifications(
-            (current) =>
-              current.map(
-                (notification) => ({
-                  ...notification,
-                  read: true,
-                }),
-              ),
-          )
-        }
       />
-
-      {notificationOpen && (
-        <NotificationPanel
-          notifications={
-            notifications
-          }
-          onClose={() =>
-            setNotificationOpen(
-              false,
-            )
-          }
-        />
-      )}
 
       <div className="buyer-layout">
         <Sidebar
@@ -1936,7 +2198,7 @@ export default function Buyer() {
           onNavigate={navigate}
         />
 
-        <main className="buyer-content">
+        <main className="buyer-content" data-buyer-view={activeTab}>
           {activeTab ===
             "Dashboard" && (
             <Dashboard
@@ -1982,82 +2244,43 @@ export default function Buyer() {
               search={
                 marketplaceSearch
               }
-              cartCount={
-                cart.length
-              }
               onCategory={
                 setCategory
               }
               onSearch={
                 setMarketplaceSearch
               }
-              onProduct={
-                setSelectedProduct
-              }
-              onAddToCart={
-                addToCart
-              }
-              onCart={() =>
-                setShowCart(true)
-              }
-            />
-          )}
-
-          {activeTab ===
-            "Procurement" && (
-            <Procurement
-              form={
-                requirementForm
-              }
-              draft={
-                draftRequirement
-              }
-              requirements={
-                requirements
-              }
-              farmers={
-                MOCK_FARMERS
-              }
-              offers={
-                offers
-              }
-              selectedListingIds={selectedListingIds}
-              selectedListingQuantities={selectedListingQuantities}
-              editingItemId={
-                editingRequirementItemId
-              }
-              onFormChange={
-                setRequirementForm
-              }
-              onAdd={
-                addOrUpdateRequirementItem
-              }
-              onUpdate={
-                updateRequirementItem
-              }
-              onDelete={
-                deleteRequirementItem
-              }
-              onSubmit={
-                submitRequirement
-              }
-              onToggleListing={toggleListing}
-              onSetQuantity={setListingQuantity}
-              onSendRequest={
-                sendProcurementRequest
-              }
-              onNegotiate={
-                negotiateOffer
-              }
-              onFarmerAccept={
-                farmerAcceptOffer
-              }
-              onConfirm={finalizeProcurementOrder}
-              onDeclineOffer={declineOffer}
-              onCloseRequirement={closeRequirement}
-              onFarmer={
-                setSelectedFarmer
-              }
+              onProduct={(product) => {
+                const farmer = MOCK_FARMERS.find((item) => item.id === product.farmerId);
+                if (farmer) setSelectedFarmer(farmer);
+              }}
+              procurement={{
+                form: requirementForm,
+                draft: draftRequirement,
+                requirements,
+                farmers: MOCK_FARMERS,
+                offers,
+                selectedListingIds,
+                selectedListingQuantities,
+                editingItemId: editingRequirementItemId,
+                onFormChange: setRequirementForm,
+                onAdd: addOrUpdateRequirementItem,
+                onUpdate: updateRequirementItem,
+                onDelete: deleteRequirementItem,
+                onCancelUpdate: resetRequirementForm,
+                onSubmit: submitRequirement,
+                onToggleListing: toggleListing,
+                onSetQuantity: setListingQuantity,
+                onSendRequest: sendProcurementRequest,
+                onNegotiate: negotiateOffer,
+                onFarmerAccept: farmerAcceptOffer,
+                onConfirm: finalizeProcurementOrder,
+                onDeclineOffer: declineOffer,
+                onCloseRequirement: closeRequirement,
+                onDismissRequirement: dismissRequirement,
+                onFarmer: setSelectedFarmer,
+              }}
+              onAddToRequest={addMarketplaceProductToRequirement}
             />
           )}
 
@@ -2082,6 +2305,7 @@ export default function Buyer() {
               onSearch={
                 setOrderSearch
               }
+              onSubmitReview={submitFarmerReview}
             />
           )}
 
@@ -2097,6 +2321,9 @@ export default function Buyer() {
             <Analytics
               orders={
                 analyticsOrders
+              }
+              requirements={
+                requirements
               }
               barData={
                 barData
@@ -2166,9 +2393,8 @@ export default function Buyer() {
 
       {selectedFarmer && (
         <FarmerModal
-          farmer={
-            selectedFarmer
-          }
+          farmer={selectedFarmer}
+          reviews={farmerReviews.filter((review) => review.farmerId === selectedFarmer.id)}
           onClose={() =>
             setSelectedFarmer(
               null,
@@ -2176,59 +2402,6 @@ export default function Buyer() {
           }
           onNavigate={
             navigate
-          }
-        />
-      )}
-
-      {selectedProduct && (
-        <ProductModal
-          product={
-            selectedProduct
-          }
-          onClose={() =>
-            setSelectedProduct(
-              null,
-            )
-          }
-          onAdd={(
-            quantity,
-          ) =>
-            addToCart(
-              selectedProduct,
-              quantity,
-            )
-          }
-        />
-      )}
-
-      {showCart && (
-        <CartModal
-          cart={cart}
-          total={cartTotal}
-          onClose={() =>
-            setShowCart(false)
-          }
-          onIncrease={(
-            id,
-          ) =>
-            updateCartQuantity(
-              id,
-              1,
-            )
-          }
-          onDecrease={(
-            id,
-          ) =>
-            updateCartQuantity(
-              id,
-              -1,
-            )
-          }
-          onRemove={
-            removeFromCart
-          }
-          onPurchase={
-            purchaseCart
           }
         />
       )}
@@ -2310,12 +2483,11 @@ function Header({
           }
         >
           <span className="buyer-brand-mark">
-            <Leaf size={22} />
+            <img src="./KhetLink_Logo.svg" alt="KhetLink Logo" width={38} height={38}/>
           </span>
-
           <span>
             <strong>KhetLink</strong>
-            <small>Buyer Portal</small>
+            <small> Farm Fresh • Smart Supply </small>
           </span>
         </button>
 
@@ -2403,7 +2575,7 @@ function Header({
                   </div>
                 ) : (
                   notifications
-                    .slice(0, 6)
+                    .filter((notification) => !notification.read)
                     .map(
                       (
                         notification,
@@ -2572,22 +2744,6 @@ function Sidebar({
             ),
           )}
         </nav>
-
-        <div className="buyer-sidebar-bottom">
-          <div className="buyer-sidebar-help">
-            <CircleHelp
-              size={18}
-            />
-            <div>
-              <strong>
-                Need help?
-              </strong>
-              <span>
-                KhetLink Support
-              </span>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );
@@ -2632,15 +2788,10 @@ function Dashboard({
     <div className="buyer-main dashboard-main">
       <section className="dashboard-welcome">
         <div className="dashboard-welcome-copy">
-          <p className="eyebrow">
-            SMARTER PROCUREMENT
-          </p>
-
           <h1>
             Smarter Procurement
             <span> for a Fresh Tomorrow.</span>
           </h1>
-
           <p>
             Source fresh, quality produce directly from reliable farmers and logistics partners — all in one place.
           </p>
@@ -2660,20 +2811,6 @@ function Dashboard({
             Marketplace
           </button>
 
-          <button
-            type="button"
-            className="buyer-outline-button"
-            onClick={() =>
-              onNavigate(
-                "Procurement",
-              )
-            }
-          >
-            <ClipboardList
-              size={17}
-            />
-            Procurement
-          </button>
         </div>
       </section>
 
@@ -2729,6 +2866,7 @@ function Dashboard({
           }
           icon={<Truck />}
         />
+        <DashboardInsights orders={orders} requirements={requirements}/>
       </section>
 
       <section className="dashboard-two-column">
@@ -2746,7 +2884,7 @@ function Dashboard({
               icon={
                 <ShoppingCart />
               }
-              text="Your confirmed marketplace and procurement orders will appear here."
+              text="Your confirmed marketplace orders will appear here."
             />
           ) : (
             <div className="recent-orders-table">
@@ -2973,31 +3111,101 @@ function Dashboard({
 }
 
 function DashboardInsights({ orders, requirements }: { orders: Order[]; requirements: Requirement[] }) {
-  const [range, setRange] = useState<"week" | "month">("week");
-  const now = Date.now();
-  const span = range === "week" ? 7 : 30;
-  const start = now - span * 24 * 60 * 60 * 1000;
-  const previousStart = start - span * 24 * 60 * 60 * 1000;
-  const current = orders.filter((order) => new Date(order.createdAt).getTime() >= start);
-  const previous = orders.filter((order) => { const time = new Date(order.createdAt).getTime(); return time >= previousStart && time < start; });
-  const demand = current.reduce((sum, order) => sum + order.quantity, 0);
-  const previousDemand = previous.reduce((sum, order) => sum + order.quantity, 0);
-  const change = previousDemand === 0 ? (demand > 0 ? 100 : 0) : Math.round(((demand - previousDemand) / previousDemand) * 100);
+  const current = orders;
+
   const quantityMap = new Map<string, number>();
-  current.forEach((order) => quantityMap.set(order.product, (quantityMap.get(order.product) ?? 0) + order.quantity));
-  const quantityData = Array.from(quantityMap.entries()).map(([name, quantity]) => ({ name, quantity }));
-  const statusData = ["Confirmed", "Processing", "In Transit", "Delivered"].map((name) => ({ name, value: current.filter((order) => order.status === name).length }));
-  const requirementData = ["Matched", "Pending", "Not Found", "Confirmed", "Closed"].map((name) => ({ name, value: requirements.filter((item) => name === "Pending" ? ["Draft", "Searching", "Pending"].includes(item.status) : item.status === name).length }));
-  const colors = ["#16834a", "#f1b51b", "#3b82f6", "#ef8b2c", "#8b5cf6", "#0f766e"];
+  current.forEach((order) => {
+    quantityMap.set(
+      order.product,
+      (quantityMap.get(order.product) ?? 0) + order.quantity,
+    );
+  });
+  const barData = Array.from(quantityMap.entries()).map(([name, quantity]) => ({
+    name,
+    quantity,
+  }));
+
+  const pieData = ["Confirmed", "Processing", "In Transit", "Delivered"].map((name) => ({
+    name,
+    value: current.filter((order) => order.status === name).length,
+  }));
+
+  const requirementData = ["Matched", "Pending", "Not Found", "Confirmed", "Closed"].map((name) => ({
+    name,
+    value: requirements.filter((item) =>
+      name === "Pending"
+        ? ["Draft", "Searching", "Pending"].includes(item.status)
+        : item.status === name,
+    ).length,
+  }));
+
   return (
-    <section className="dashboard-insights">
-      <article className="buyer-card dashboard-chart-card dashboard-demand-card">
-        <div className="section-header"><div><h2>Demand Overview</h2><p>Product quantity by selected period</p></div><div className="dashboard-period-toggle"><button type="button" className={range === "week" ? "active" : ""} onClick={() => setRange("week")}>This Week</button><button type="button" className={range === "month" ? "active" : ""} onClick={() => setRange("month")}>This Month</button></div></div>
-        <div className="dashboard-demand-summary"><span>Total Demand</span><strong>{demand.toLocaleString("en-IN")} kg</strong><em className={change >= 0 ? "positive" : "negative"}>{change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs previous {range}</em></div>
-        <div className="dashboard-chart-container">{quantityData.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={quantityData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis label={{ value: "Quantity (kg)", angle: -90, position: "insideLeft" }} /><Tooltip /><Bar dataKey="quantity" radius={[6,6,0,0]}>{quantityData.map((item,index)=><Cell key={`${item.name}-${index}`} fill={colors[index % colors.length]} />)}</Bar></BarChart></ResponsiveContainer> : <ChartEmpty text="Product demand will appear after your first order." />}</div>
+    <section className="dashboard-insights analytics-chart-grid">
+      <article className="buyer-card analytics-chart-card">
+        <SectionHeader title="Product Quantity" />
+
+        {barData.length === 0 ? (
+          <ChartEmpty text="Your product volume chart will appear after you place an order." />
+        ) : (
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis label={{ value: "Quantity (kg)", angle: -90, position: "insideLeft" }} />
+                <Tooltip />
+                <Bar dataKey="quantity" radius={[6, 6, 0, 0]}>
+                  {barData.map((item, index) => (
+                    <Cell key={`${item.name}-${index}`} fill={["#16834a", "#f1b51b", "#3b82f6", "#ef8b2c", "#8b5cf6", "#0f766e"][index % 6]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </article>
-      <article className="buyer-card dashboard-chart-card"><SectionHeader title="Order Distribution" /><div className="dashboard-pie-layout"><ResponsiveContainer width="58%" height="100%"><PieChart><Pie data={statusData} dataKey="value" nameKey="name" outerRadius={78}>{statusData.map((item,index)=><Cell key={item.name} fill={colors[index]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div className="dashboard-legend">{statusData.map((item,index)=><span key={item.name}><i style={{ background: colors[index] }} />{item.name}<b>{item.value}</b></span>)}</div></div></article>
-      <article className="buyer-card dashboard-chart-card"><SectionHeader title="Requirement Status" /><div className="dashboard-pie-layout"><ResponsiveContainer width="58%" height="100%"><PieChart><Pie data={requirementData} dataKey="value" nameKey="name" outerRadius={78}>{requirementData.map((item,index)=><Cell key={item.name} fill={colors[index]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer><div className="dashboard-legend">{requirementData.map((item,index)=><span key={item.name}><i style={{ background: colors[index] }} />{item.name}<b>{item.value}</b></span>)}</div></div></article>
+
+      <article className="buyer-card analytics-chart-card">
+        <SectionHeader title="Order Distribution" />
+        {pieData.every((item) => item.value === 0) ? (
+          <ChartEmpty text="Your order status distribution will appear after your first purchase." />
+        ) : (
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                  {pieData.map((item, index) => (
+                    <Cell key={item.name} fill={["#16834a", "#f1b51b", "#3b82f6", "#ef8b2c"][index]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </article>
+
+      <article className="buyer-card analytics-chart-card">
+        <SectionHeader title="Requirement Status" />
+        {requirementData.every((item) => item.value === 0) ? (
+          <ChartEmpty text="Requirement status will appear after you create a procurement requirement." />
+        ) : (
+          <div className="chart-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={requirementData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
+                  {requirementData.map((item, index) => (
+                    <Cell key={item.name} fill={["#16834a", "#f1b51b", "#3b82f6", "#ef8b2c", "#8b5cf6"][index]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </article>
     </section>
   );
 }
@@ -3011,18 +3219,16 @@ function Marketplace({
   categories,
   category,
   search,
-  cartCount,
   onCategory,
   onSearch,
   onProduct,
-  onAddToCart,
-  onCart,
+  procurement,
+  onAddToRequest,
 }: {
   products: Product[];
   categories: string[];
   category: string;
   search: string;
-  cartCount: number;
   onCategory: (
     category: string,
   ) => void;
@@ -3032,11 +3238,8 @@ function Marketplace({
   onProduct: (
     product: Product,
   ) => void;
-  onAddToCart: (
-    product: Product,
-    quantity: number,
-  ) => void;
-  onCart: () => void;
+  procurement: Parameters<typeof Procurement>[0];
+  onAddToRequest: (product: Product, quantity: number, unit: RequirementUnit) => void;
 }) {
   const [sortBy, setSortBy] = useState("relevance");
   const displayProducts = useMemo(() => {
@@ -3072,48 +3275,61 @@ function Marketplace({
           purchases in one place.
         </p>
 
-        <div className="marketplace-search">
+
+      </section>
+
+      <section className="marketplace-procurement-section">
+        <div className="marketplace-section-divider">
+          <p className="eyebrow green">1. STATE YOUR REQUIREMENTS</p>
+          <h2>Need produce at scale?</h2>
+          <p>Create a requirement, choose quantity and unit, match farmers, then request, negotiate, confirm or decline from the same Marketplace.</p>
+        </div>
+        <Procurement {...procurement} />
+      </section>
+
+      <section className="marketplace-browse-section">
+        <div className="marketplace-section-divider">
+          <p className="eyebrow green">2. BROWSE PRODUCTS</p>
+          <h2>Fresh produce from farmers</h2>
+          <p>Browse individual listings below. Send a request directly to the farmer, then negotiate and confirm from the same card.</p>
+        </div>
+
+        <div className="marketplace-search marketplace-browse-search">
           <Search size={19} />
           <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search produce or farmer" />
         </div>
-        <div className="marketplace-cart-row">
-          <span>Fresh produce from verified farmers</span>
-          <button type="button" onClick={onCart}>
-            <ShoppingCart size={18} /> My Cart
-            {cartCount > 0 && <b>{cartCount}</b>}
-          </button>
+
+      <div className="marketplace-category-sort-wrap">
+        <div className="marketplace-category-row">
+          {categories.map(
+            (item) => (
+              <button
+                type="button"
+                key={item}
+                className={
+                  category ===
+                  item
+                    ? "active"
+                    : ""
+                }
+                onClick={() =>
+                  onCategory(item)
+                }
+              >
+                {item}
+              </button>
+            ),
+          )}
         </div>
-      </section>
 
-      <div className="marketplace-category-row">
-        {categories.map(
-          (item) => (
-            <button
-              type="button"
-              key={item}
-              className={
-                category ===
-                item
-                  ? "active"
-                  : ""
-              }
-              onClick={() =>
-                onCategory(item)
-              }
-            >
-              {item}
-            </button>
-          ),
-        )}
-      </div>
-
-      <div className="marketplace-sort-row">
+        <div className="marketplace-sort-row">
         <span>Sort by</span>
         <button type="button" className={sortBy === "delivery" ? "active" : ""} onClick={() => setSortBy("delivery")}>Delivery Time</button>
         <button type="button" className={sortBy === "produce" ? "active" : ""} onClick={() => setSortBy("produce")}>Produce</button>
         <button type="button" className={sortBy === "rating" ? "active" : ""} onClick={() => setSortBy("rating")}>Ratings</button>
         <button type="button" className={sortBy === "price" ? "active" : ""} onClick={() => setSortBy("price")}>Price</button>
         <button type="button" className={sortBy === "quantity" ? "active" : ""} onClick={() => setSortBy("quantity")}>Quantity Available</button>
+        </div>
       </div>
 
       <div className="marketplace-heading">
@@ -3133,7 +3349,7 @@ function Marketplace({
         </span>
       </div>
 
-      {products.length ===
+      {displayProducts.length ===
       0 ? (
         <section className="buyer-card empty-state-large">
           <Search
@@ -3163,12 +3379,17 @@ function Marketplace({
                     product,
                   )
                 }
-                onAdd={(quantity) => onAddToCart(product, quantity)}
+                offer={procurement.offers.find((item) => item.productId === product.id && item.farmerId === product.farmerId)}
+                onAddToRequest={(quantity, unit) => onAddToRequest(product, quantity, unit)}
+                onNegotiate={(price) => procurement.onNegotiate(`MARKETPLACE-${product.id}`, product.farmerId, price)}
+                onConfirm={() => procurement.onConfirm(`MARKETPLACE-${product.id}`, product.farmerId)}
+                onDecline={() => procurement.onDeclineOffer(`MARKETPLACE-${product.id}`, product.farmerId)}
               />
             ),
           )}
         </div>
       )}
+      </section>
     </div>
   );
 }
@@ -3176,13 +3397,67 @@ function Marketplace({
 function ProductCard({
   product,
   onView,
-  onAdd,
+  onAddToRequest,
+  offer,
+  onNegotiate,
+  onConfirm,
+  onDecline,
 }: {
   product: Product;
   onView: () => void;
-  onAdd: (quantity: number) => void;
+  onAddToRequest: (quantity: number, unit: RequirementUnit) => void;
+  offer?: FarmerOffer;
+  onNegotiate: (price: number) => void;
+  onConfirm: () => void;
+  onDecline: () => void;
 }) {
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(100);
+  const [unit, setUnit] = useState<RequirementUnit>("kg");
+  const [price, setPrice] = useState(offer?.offeredPrice ?? product.pricePerKg);
+  const [visibleOffer, setVisibleOffer] = useState<FarmerOffer | undefined>(offer);
+
+  const availableForUnit = fromKg(product.quantityAvailable, unit);
+  const minimumForUnit = minimumQuantityForUnit(unit);
+  const quantityStep = unit === "ton" ? 0.01 : unit === "dozen" ? 1 : 1;
+  const priceForUnit = pricePerSelectedUnit(product.pricePerKg, unit);
+  const negotiatedPriceForUnit = price;
+
+  useEffect(() => {
+    setVisibleOffer(offer);
+    if (offer) {
+      setPrice(offer.offeredPrice);
+      if (offer.requestedUnit) setUnit(offer.requestedUnit);
+      if (offer.status === "Accepted" || offer.status === "Rejected") {
+        const timer = window.setTimeout(() => setVisibleOffer(undefined), 4500);
+        return () => window.clearTimeout(timer);
+      }
+    }
+  }, [offer]);
+
+  const changeUnit = (nextUnit: RequirementUnit) => {
+    const currentKg = toKg(quantity, unit);
+    const nextMax = fromKg(product.quantityAvailable, nextUnit);
+    const nextMin = minimumQuantityForUnit(nextUnit);
+    const converted = fromKg(currentKg, nextUnit);
+    setUnit(nextUnit);
+    setQuantity(Math.min(nextMax, Math.max(nextMin, Number(converted.toFixed(2)))));
+  };
+
+  const setTypedQuantity = (value: string) => {
+    if (value === "") {
+      setQuantity(0);
+      return;
+    }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    setQuantity(parsed);
+  };
+
+  const adjustQuantity = (delta: number) => {
+    setQuantity((value) =>
+      Math.min(availableForUnit, Math.max(minimumForUnit, Number((value + delta).toFixed(2)))),
+    );
+  };
 
   return (
     <article className="product-card">
@@ -3191,76 +3466,80 @@ function ProductCard({
       <div className="product-content">
         <div className="product-top">
           <div>
-            <h3>
-              {product.name}
-            </h3>
-
-            <p>
-              {product.farmerName}
-            </p>
+            <h3>{product.name}</h3>
+            <p>{product.farmerName}</p>
           </div>
-
-          <span className="product-rating">
-            <Star
-              size={12}
-              fill="currentColor"
-            />
-            {product.rating}
-          </span>
+          <span className="product-rating"><Star size={12} fill="currentColor" />{product.rating}</span>
           <small className="product-review-count">{product.reviews} reviews</small>
         </div>
 
-        <div className="product-location">
-          <Truck size={13} />
-          {product.deliveryTime}
-        </div>
+        <div className="product-location"><Truck size={13} />{product.deliveryTime}</div>
 
         <div className="product-price">
-          <strong>
-            {formatCurrency(
-              product.pricePerKg,
-            )}
-          </strong>
-          <span>
-            / kg
-          </span>
+          <strong>{formatCurrency(priceForUnit)}</strong>
+          <span>/ {unit}</span>
         </div>
-
-        <small className="product-availability">
-          {product.quantityAvailable}{" "}
-          kg available
-        </small>
+        <small className="product-availability">{availableForUnit.toLocaleString()} {unit} available</small>
 
         <div className="product-card-quantity">
-          <span>Quantity</span>
+          <span>Request quantity</span>
           <div>
-            <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))}><Minus size={13} /></button>
-            <strong>{quantity} kg</strong>
-            <button type="button" onClick={() => setQuantity((value) => Math.min(product.quantityAvailable, value + 1))}><Plus size={13} /></button>
+            <button type="button" onClick={() => adjustQuantity(-quantityStep)}><Minus size={13} /></button>
+            <input type="number" min={minimumForUnit} max={availableForUnit} step={quantityStep} value={quantity === 0 ? "" : quantity} onChange={(event) => setTypedQuantity(event.target.value)} onBlur={() => setQuantity(Math.min(availableForUnit, Math.max(minimumForUnit, Number(quantity) || minimumForUnit)))} />
+            <button type="button" onClick={() => adjustQuantity(quantityStep)}><Plus size={13} /></button>
+            <select value={unit} onChange={(event) => changeUnit(event.target.value as RequirementUnit)}>
+              <option value="kg">kg</option><option value="L">L</option><option value="ton">ton</option><option value="dozen">dozen</option>
+            </select>
           </div>
         </div>
 
         <div className="product-actions">
-          <button
-            type="button"
-            className="product-details-btn"
-            onClick={onView}
-          >
-            <Eye size={14} />
-            Details
-          </button>
-
-          <button
-            type="button"
-            className="product-cart-btn"
-            onClick={() => onAdd(quantity)}
-          >
-            <ShoppingCart
-              size={14}
-            />
-            Add
-          </button>
+          <button type="button" className="product-details-btn" onClick={onView}><Eye size={14} />Details</button>
+          {(!visibleOffer) && (
+            <button type="button" className="product-request-btn" onClick={() => { const safeQuantity = Math.min(availableForUnit, Math.max(minimumForUnit, Number(quantity) || 0)); if (safeQuantity < minimumForUnit) return; setQuantity(safeQuantity); onAddToRequest(safeQuantity, unit); }}>
+              <Send size={14} />{"Send Request"}
+            </button>
+          )}
         </div>
+
+        {visibleOffer && visibleOffer.status === "Accepted" && (
+          <div className="farmer-negotiation-box product-card-negotiation product-card-confirmed-state">
+            <div>
+              <span>Order confirmed</span>
+              <strong>{formatCurrency(visibleOffer.offeredPrice)} / {visibleOffer.requestedUnit ?? unit}</strong>
+            </div>
+            <StatusOffer status="Accepted" />
+            <span className="farmer-response-waiting">Your order is confirmed. The product card will be ready for a new request shortly.</span>
+          </div>
+        )}
+
+        {visibleOffer && visibleOffer.status !== "Accepted" && (
+          <div className="farmer-negotiation-box product-card-negotiation">
+            <div>
+              <span>Negotiated price</span>
+              <div className="negotiation-input"><span>₹</span><input type="number" min="1" value={price} onChange={(event) => setPrice(Number(event.target.value))} /><span>/ {visibleOffer.requestedUnit ?? unit}</span></div>
+              <small className="negotiated-unit-price">{formatCurrency(negotiatedPriceForUnit)} / {visibleOffer.requestedUnit ?? unit}</small>
+            </div>
+            <StatusOffer status={visibleOffer.status} />
+            <div className="negotiation-actions">
+              {visibleOffer.status !== "Rejected" && (
+                <button type="button" onClick={() => onNegotiate(price)}>
+                  {visibleOffer.farmerConfirmed ? "Send New Price" : "Negotiate"}
+                </button>
+              )}
+              {visibleOffer.status === "Negotiating" && visibleOffer.farmerConfirmed && !visibleOffer.buyerConfirmed && (
+                <button type="button" className="buyer-primary-button small" onClick={onConfirm}>Accept Price</button>
+              )}
+              {visibleOffer.status === "Negotiating" && !visibleOffer.buyerConfirmed && (
+                <button type="button" className="product-decline-btn" onClick={onDecline}>Decline</button>
+              )}
+              {visibleOffer.status === "Requested" && (
+                <span className="farmer-response-waiting">Waiting for farmer response…</span>
+              )}
+            </div>
+            <AcceptanceStatus farmer={MOCK_FARMERS.find((item) => item.id === product.farmerId)!} offer={visibleOffer} />
+          </div>
+        )}
       </div>
     </article>
   );
@@ -3283,6 +3562,7 @@ function Procurement({
   onAdd,
   onUpdate,
   onDelete,
+  onCancelUpdate,
   onSubmit,
   onToggleListing,
   onSetQuantity,
@@ -3292,6 +3572,7 @@ function Procurement({
   onConfirm,
   onDeclineOffer,
   onCloseRequirement,
+  onDismissRequirement,
   onFarmer,
 }: {
   form: RequirementItem;
@@ -3312,6 +3593,7 @@ function Procurement({
   onDelete: (
     itemId: string,
   ) => void;
+  onCancelUpdate: () => void;
   onSubmit: (
     requirementId: string,
   ) => void;
@@ -3333,6 +3615,7 @@ function Procurement({
   onConfirm: (requirementId: string, farmerId: string) => void;
   onDeclineOffer: (requirementId: string, farmerId: string) => void;
   onCloseRequirement: (requirementId: string) => void;
+  onDismissRequirement: (requirementId: string) => void;
   onFarmer: (
     farmer: Farmer,
   ) => void;
@@ -3345,7 +3628,7 @@ function Procurement({
     );
 
   return (
-    <div className="buyer-main procurement-main">
+    <div className="procurement-main marketplace-procurement">
       <div className="page-heading">
         <div>
           <p className="eyebrow green">
@@ -3403,10 +3686,10 @@ function Procurement({
 
           <Field label="Quantity">
             <div className="buyer-quantity-control">
-              <button type="button" onClick={() => onFormChange({ ...form, quantity: Math.max(1, form.quantity - 1) })}><Minus size={14} /></button>
-              <input type="number" min="1" value={form.quantity} onChange={(event) => onFormChange({ ...form, quantity: Math.max(1, Number(event.target.value)) })} />
-              <button type="button" onClick={() => onFormChange({ ...form, quantity: form.quantity + 1 })}><Plus size={14} /></button>
-              <select value={form.unit ?? "kg"} onChange={(event) => onFormChange({ ...form, unit: event.target.value as RequirementUnit })}><option value="g">g</option><option value="kg">kg</option><option value="ton">ton</option></select>
+              <button type="button" onClick={() => onFormChange({ ...form, quantity: Math.max(minimumQuantityForUnit(form.unit ?? "kg"), form.quantity - 1) })}><Minus size={14} /></button>
+              <input type="number" min={minimumQuantityForUnit(form.unit ?? "kg")} value={form.quantity === 0 ? "" : form.quantity} onChange={(event) => { const raw = event.target.value; onFormChange({ ...form, quantity: raw === "" ? 0 : Number(raw) }); }} onBlur={() => onFormChange({ ...form, quantity: Math.max(minimumQuantityForUnit(form.unit ?? "kg"), Number(form.quantity) || minimumQuantityForUnit(form.unit ?? "kg")) })} />
+              <button type="button" onClick={() => onFormChange({ ...form, quantity: Math.min(fromKg(999999, form.unit ?? "kg"), form.quantity + 1) })}><Plus size={14} /></button>
+              <select value={form.unit ?? "kg"} onChange={(event) => { const nextUnit = event.target.value as RequirementUnit; const kg = toKg(form.quantity, form.unit ?? "kg"); onFormChange({ ...form, unit: nextUnit, quantity: Math.max(minimumQuantityForUnit(nextUnit), Number(fromKg(kg, nextUnit).toFixed(2))) }); }}><option value="kg">kg</option><option value="L">L</option><option value="ton">ton</option><option value="dozen">dozen</option></select>
             </div>
           </Field>
 
@@ -3499,21 +3782,7 @@ function Procurement({
             <button
               type="button"
               className="buyer-outline-button"
-              onClick={() =>
-                onFormChange({
-                  id: "",
-                  produce: "",
-                  quantity: 1,
-                  unit: "kg",
-                  minPrice: 1,
-                  maxPrice: 100,
-                  requiredBy:
-                    futureDate(
-                      7,
-                    ),
-                  location: "",
-                })
-              }
+              onClick={onCancelUpdate}
             >
               Cancel Update
             </button>
@@ -3573,14 +3842,7 @@ function Procurement({
                   className="requirement-item"
                   key={item.id}
                 >
-                  <div className="requirement-product-icon">
-                    {
-                      getProductEmoji(
-                        item.produce,
-                      )
-                    }
-                  </div>
-
+                 <div className="requirement-product-icon"><img src={getProductImage(item.produce)} alt={item.produce}/></div>
                   <div className="requirement-item-copy">
                     <strong>
                       {
@@ -3739,6 +4001,7 @@ function Procurement({
             onConfirm={onConfirm}
             onDeclineOffer={onDeclineOffer}
             onCloseRequirement={onCloseRequirement}
+            onDismissRequirement={onDismissRequirement}
             onFarmer={
               onFarmer
             }
@@ -3767,6 +4030,7 @@ function ProcurementRequest({
   onConfirm,
   onDeclineOffer,
   onCloseRequirement,
+  onDismissRequirement,
   onFarmer,
 }: {
   requirement: Requirement;
@@ -3792,6 +4056,7 @@ function ProcurementRequest({
   onConfirm: (requirementId: string, farmerId: string) => void;
   onDeclineOffer: (requirementId: string, farmerId: string) => void;
   onCloseRequirement: (requirementId: string) => void;
+  onDismissRequirement: (requirementId: string) => void;
   onFarmer: (
     farmer: Farmer,
   ) => void;
@@ -3874,17 +4139,16 @@ function ProcurementRequest({
         >
           {requirement.status}
         </span>
-        {requirement.status !== "Closed" && requirement.status !== "Confirmed" && (
-          <button type="button" className="buyer-outline-button small" onClick={() => onCloseRequirement(requirement.id)}>Close Requirement</button>
-        )}
+        { requirement.status !== "Confirmed" &&
+          requirement.status !== "Not Found" &&
+          requirement.status !== "Closed" && (<button type="button" className="buyer-outline-button small requirement-close-text" onClick={() => onCloseRequirement(requirement.id)}>Close Requirement</button>)}
       </div>
-
       {requirement.status === "Not Found" || requirement.status === "Closed" ? (
         <InlineEmpty
           icon={
             <XCircle />
           }
-          text="No farmer currently matches these requirements."
+          text={requirement.status === "Closed" ? "This requirement is closed and will be removed shortly." : "No farmer currently matches these requirements."}
         />
       ) : (
         <>
@@ -4119,7 +4383,7 @@ function MatchedFarmerCard({
                 </span>
                 <div className="matching-quantity-control">
                   <button type="button" onClick={(event) => { event.preventDefault(); onToggle(listing.id); }}>{selected.includes(listing.id) ? "✓" : "Select"}</button>
-                  <input type="number" min="0" max={listing.availableQuantity} value={selectedQuantities[listing.id] ?? 0} onChange={(event) => { const next = Math.max(0, Math.min(listing.availableQuantity, Number(event.target.value))); if (next > 0 && !selected.includes(listing.id)) onToggle(listing.id); if (next === 0 && selected.includes(listing.id)) onToggle(listing.id); onSetQuantity(listing.id, next); }} />
+                  <input type="number" min="100" max={listing.availableQuantity} value={selectedQuantities[listing.id] ?? ""} onChange={(event) => { const raw = event.target.value; const next = raw === "" ? 0 : Number(raw); if (next > 0 && !selected.includes(listing.id)) onToggle(listing.id); if (next === 0 && selected.includes(listing.id)) onToggle(listing.id); onSetQuantity(listing.id, Number.isFinite(next) ? next : 0); }} onBlur={() => { const current = selectedQuantities[listing.id] ?? 0; if (current > 0) onSetQuantity(listing.id, Math.max(100, Math.min(listing.availableQuantity, current))); }} />
                   <span>kg</span>
                 </div>
               </label>
@@ -4195,10 +4459,10 @@ function MatchedFarmerCard({
               )}
 
               {!offer.buyerConfirmed && offer.status === "Negotiating" && (
-                <button type="button" onClick={onDecline}>Decline\</button>
+                <button type="button" onClick={onDecline}>Decline</button>
               )}
 
-              {!offer.farmerConfirmed && (
+              {false && (
                 <button
                   type="button"
                   onClick={
@@ -4209,7 +4473,7 @@ function MatchedFarmerCard({
                 </button>
               )}
 
-              {!offer.buyerConfirmed && (
+              {!offer.buyerConfirmed && offer.status === "Negotiating" && offer.farmerConfirmed && (
                 <button
                   type="button"
                   className="buyer-primary-button small"
@@ -4330,11 +4594,13 @@ function Orders({
   search,
   onFilter,
   onSearch,
+  onSubmitReview,
 }: {
   orders: Order[];
   allOrders: Order[];
   filter: string;
   search: string;
+  onSubmitReview: (order: Order, rating: number, comment: string) => boolean;
   onFilter: (
     value: string,
   ) => void;
@@ -4350,22 +4616,11 @@ function Orders({
     "Delivered",
   ];
 
-  const marketplace =
-    orders.filter(
-      (order) =>
-        order.type ===
-        "Marketplace",
-    );
-
-  const procurement =
-    orders.filter(
-      (order) =>
-        order.type ===
-        "Procurement",
-    );
-
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(orders[0]?.id ?? null);
   const selectedOrder = orders.find((order) => order.id === selectedOrderId) ?? orders[0];
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
 
   return (
     <div className="buyer-main orders-main">
@@ -4381,11 +4636,7 @@ function Orders({
           </h1>
 
           <p>
-            Marketplace purchases
-            and confirmed
-            procurement orders stay
-            connected to the same
-            order history.
+            All confirmed purchases and negotiated requests are part of your Marketplace order history.
           </p>
         </div>
 
@@ -4437,14 +4688,7 @@ function Orders({
 
       <OrderGroup
         title="Marketplace Orders"
-        orders={marketplace}
-        selectedOrderId={selectedOrderId}
-        onSelect={setSelectedOrderId}
-      />
-
-      <OrderGroup
-        title="Procurement Orders"
-        orders={procurement}
+        orders={orders}
         selectedOrderId={selectedOrderId}
         onSelect={setSelectedOrderId}
       />
@@ -4455,6 +4699,48 @@ function Orders({
             <div className="live-map order-live-map"><MapIcon size={28} /><strong>{selectedOrder.id}</strong><span>Live Order Map</span><small>{selectedOrder.seller} → {selectedOrder.buyer}</small></div>
             <h3>Live Order Status</h3>
             <div className="selected-order-status"><StatusBadge status={selectedOrder.status} /><strong>{selectedOrder.product}</strong><span>{selectedOrder.quantity} kg · {formatCurrency(selectedOrder.cost)}</span></div>
+            {selectedOrder.status !== "Pending" && (
+              <button type="button" className="buyer-outline-button small order-review-trigger" onClick={() => { setReviewOrderId(selectedOrder.id); setReviewRating(0); setReviewComment(""); }}>Write Review</button>
+            )}
+            {reviewOrderId === selectedOrder.id && (
+              <div className="order-review-form">
+                <strong>Review {selectedOrder.seller}</strong>
+                <div className="order-rating-picker">
+  <div className="order-review-stars">
+    {[1, 2, 3, 4, 5].map((star) => {
+      const isSelected = star <= reviewRating;
+
+      return (
+        <button
+          type="button"
+          key={star}
+          aria-label={`${star} star`}
+          className={isSelected ? "active" : ""}
+          onClick={() =>
+            setReviewRating(reviewRating === star ? 0 : star)
+          }
+        >
+          <Star
+            size={26}
+            strokeWidth={1.8}
+            fill={isSelected ? "currentColor" : "none"}
+          />
+        </button>
+      );
+    })}
+  </div>
+
+  <span className="order-rating-value">
+    {reviewRating > 0 ? `${reviewRating}/5` : "0/5"}
+  </span>
+</div>
+                <textarea value={reviewComment} onChange={(event) => setReviewComment(event.target.value)} placeholder="Write your experience with this farmer..." rows={4} />
+                <div className="modal-actions">
+                  <button type="button" className="buyer-outline-button small" onClick={() => setReviewOrderId(null)}>Cancel</button>
+                  <button type="button" className="buyer-primary-button small" onClick={() => { if (onSubmitReview(selectedOrder, reviewRating, reviewComment)) { setReviewOrderId(null); setReviewRating(0); setReviewComment(""); } }}>Submit Review</button>
+                </div>
+              </div>
+            )}
             <TimelineItem title="Order confirmed" time="Confirmed" done />
             <TimelineItem title="Processing" time="Preparing order" done={selectedOrder.status !== "Confirmed"} />
             <TimelineItem title="In transit" time="Live logistics update" done={selectedOrder.status === "In Transit" || selectedOrder.status === "Delivered"} />
@@ -4812,6 +5098,7 @@ function Shipment({
 
 function Analytics({
   orders,
+  requirements,
   barData,
   pieData,
   range,
@@ -4823,6 +5110,7 @@ function Analytics({
   onExport,
 }: {
   orders: Order[];
+  requirements: Requirement[];
   barData: {
     name: string;
     quantity: number;
@@ -4858,6 +5146,21 @@ function Analytics({
         sum + order.cost,
       0,
     );
+
+  const requirementData = [
+    "Matched",
+    "Pending",
+    "Not Found",
+    "Confirmed",
+    "Closed",
+  ].map((name) => ({
+    name,
+    value: requirements.filter((item) =>
+      name === "Pending"
+        ? ["Draft", "Searching", "Pending"].includes(item.status)
+        : item.status === name,
+    ).length,
+  }));
 
   return (
     <div className="buyer-main analytics-main">
@@ -5082,6 +5385,44 @@ function Analytics({
             </div>
           )}
         </article>
+
+        <article className="buyer-card analytics-chart-card">
+          <SectionHeader
+            title="Requirement Status"
+          />
+
+          {requirementData.length === 0 ? (
+            <ChartEmpty text="Requirement status will appear after you create a procurement requirement." />
+          ) : (
+            <div className="chart-container">
+              <ResponsiveContainer
+                width="100%"
+                height="100%"
+              >
+                <PieChart>
+                  <Pie
+                    data={requirementData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={100}
+                    label
+                  >
+                    {requirementData.map((item, index) => (
+                      <Cell
+                        key={item.name}
+                        fill={["#16834a", "#f1b51b", "#3b82f6", "#ef8b2c", "#8b5cf6"][index % 5]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </article>
       </div>
 
       <article className="buyer-card analytics-table-card">
@@ -5227,10 +5568,7 @@ function Help({
           </h1>
 
           <p>
-            Use Marketplace for
-            daily purchases and
-            Procurement for
-            negotiated bulk supply.
+            Use Marketplace to browse produce, state requirements, negotiate with farmers and manage purchases in one place.
           </p>
         </div>
       </div>
@@ -5249,23 +5587,9 @@ function Help({
         />
 
         <HelpCard
-          icon={
-            <ClipboardList />
-          }
-          title="Bulk Procurement"
-          text="Add multiple requirements, submit once, select matching farmers and negotiate."
-          button="Open Procurement"
-          onClick={() =>
-            onNavigate(
-              "Procurement",
-            )
-          }
-        />
-
-        <HelpCard
           icon={<Truck />}
           title="Orders & Shipment"
-          text="Confirmed Marketplace and Procurement orders are separated by type and connected to delivery tracking."
+          text="Confirmed Marketplace orders are connected to delivery tracking."
           button="View Orders"
           onClick={() =>
             onNavigate(
@@ -5575,7 +5899,7 @@ function Profile({
             <Check
               size={12}
             />
-            Buyer Account
+            Verified Buyer
           </span>
 
           <h2>
@@ -5916,10 +6240,12 @@ function Modal({
 
 function FarmerModal({
   farmer,
+  reviews,
   onClose,
   onNavigate,
 }: {
   farmer: Farmer;
+  reviews: FarmerReview[];
   onClose: () => void;
   onNavigate: (
     view: View,
@@ -5970,18 +6296,8 @@ function FarmerModal({
           </p>
 
           <div className="modal-rating">
-            <Star
-              size={15}
-              fill="currentColor"
-            />
-            {
-              farmer.rating
-            }{" "}
-            •{" "}
-            {
-              farmer.reviews
-            }{" "}
-            reviews
+            <Star size={15} fill="currentColor" />
+            {reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : "0.0"}{" "}•{" "}{reviews.length} reviews
           </div>
 
           <div className="modal-location">
@@ -6062,6 +6378,37 @@ function FarmerModal({
         )}
       </div>
 
+      <section className="farmer-reviews-section">
+        <div className="farmer-reviews-heading">
+          <div>
+            <p className="eyebrow">REVIEWS</p>
+            <h4>Buyer Reviews</h4>
+          </div>
+          <span className="farmer-review-summary">
+            <Star size={13} fill="currentColor" />
+            {reviews.length ? (reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1) : "0.0"} · {reviews.length} reviews
+          </span>
+        </div>
+
+        {reviews.length > 0 ? (
+          <div className="farmer-review-list">
+            {reviews.map((review) => (
+              <article className="farmer-review-card" key={review.id}>
+                <div className="farmer-review-card-top"><strong>{review.buyerName}</strong><span>{new Date(review.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span></div>
+                <div className="farmer-review-stars">
+                  {Array.from({ length: 5 }).map((_, index) => <Star key={index} size={14} fill={index < review.rating ? "currentColor" : "none"} />)}
+                </div>
+                <p>{review.comment}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="farmer-review-empty">
+            <p>No reviews yet.</p>
+          </div>
+        )}
+      </section>
+
       <div className="modal-actions">
         <button
           type="button"
@@ -6077,126 +6424,14 @@ function FarmerModal({
           onClick={() => {
             onClose();
             onNavigate(
-              "Procurement",
+              "Marketplace",
             );
           }}
         >
-          Create Bulk Requirement
+          Create Requirement
           <ArrowRight
             size={15}
           />
-        </button>
-      </div>
-    </Modal>
-  );
-}
-
-function ProductModal({
-  product,
-  onClose,
-  onAdd,
-}: {
-  product: Product;
-  onClose: () => void;
-  onAdd: (
-    quantity: number,
-  ) => void;
-}) {
-  return (
-    <Modal
-      title="Product Details"
-      onClose={onClose}
-    >
-      <div className="product-modal-grid">
-        <div className="product-modal-image"><img src={product.image} alt={product.name} /></div>
-
-        <div>
-          <p className="eyebrow green">
-            {product.category}
-          </p>
-
-          <h2>
-            {product.name}
-          </h2>
-
-          <p>
-            Sold by{" "}
-            <strong>
-              {
-                product.farmerName
-              }
-            </strong>
-          </p>
-
-          {(() => {
-            const farmer = MOCK_FARMERS.find((item) => item.id === product.farmerId);
-            return farmer ? (
-              <div className="product-modal-farmer">
-                <span className="supplier-avatar">{renderAvatar(farmer.avatar, farmer.name)}</span>
-                <div><strong>{farmer.farm}</strong><small>{farmer.location} · {farmer.distanceKm} km · {farmer.rating} ★ · {farmer.reviews} reviews</small></div>
-              </div>
-            ) : null;
-          })()}
-
-          <div className="modal-rating">
-            <Star
-              size={15}
-              fill="currentColor"
-            />
-            {
-              product.rating
-            }{" "}
-            (
-            {
-              product.reviews
-            }{" "}
-            reviews)
-          </div>
-
-          <div className="product-modal-price">
-            {formatCurrency(
-              product.pricePerKg,
-            )}
-            <span>
-              /kg
-            </span>
-          </div>
-
-          <p>
-            {
-              product.quantityAvailable
-            }{" "}
-            kg available
-          </p>
-
-          <p>
-            Delivery:
-            {" "}
-            {
-              product.deliveryTime
-            }
-          </p>
-        </div>
-      </div>
-
-      <div className="modal-actions">
-        <button
-          type="button"
-          className="buyer-outline-button"
-          onClick={onClose}
-        >
-          Cancel
-        </button>
-
-        <button
-          type="button"
-          className="buyer-primary-button"
-          onClick={() => onAdd(1)}
-        >
-          <ShoppingCart
-            size={16}
-          />
-          Add to Cart
         </button>
       </div>
     </Modal>
@@ -6378,102 +6613,6 @@ function CartModal({
         </>
       )}
     </Modal>
-  );
-}
-
-/* =========================================================
-   NOTIFICATIONS
-========================================================= */
-
-function NotificationPanel({
-  notifications,
-  onClose,
-}: {
-  notifications: Notification[];
-  onClose: () => void;
-}) {
-  return (
-    <div
-      className="notification-panel-overlay"
-      onClick={onClose}
-    >
-      <div
-        className="notification-panel"
-        onClick={(event) =>
-          event.stopPropagation()
-        }
-      >
-        <div className="notification-panel-header">
-          <div>
-            <h2>
-              Notifications
-            </h2>
-
-            <p>
-              KhetLink updates
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {notifications.length ===
-        0 ? (
-          <InlineEmpty
-            icon={<Bell />}
-            text="You don't have any notifications yet."
-          />
-        ) : (
-          notifications.map(
-            (notification) => (
-              <div
-                className={`notification-panel-item ${
-                  notification.read
-                    ? ""
-                    : "unread"
-                }`}
-                key={
-                  notification.id
-                }
-              >
-                <div>
-                  <CheckCircle2
-                    size={18}
-                  />
-                </div>
-
-                <section>
-                  <strong>
-                    {
-                      notification.title
-                    }
-                  </strong>
-
-                  <p>
-                    {
-                      notification.message
-                    }
-                  </p>
-
-                  <small>
-                    {new Date(
-                      notification.createdAt,
-                    ).toLocaleString(
-                      "en-IN",
-                    )}
-                  </small>
-                </section>
-              </div>
-            ),
-          )
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -6770,7 +6909,6 @@ function getProductEmoji(
   ) {
     return "🥬";
   }
-
   if (
     normalized.includes(
       "cabbage",
@@ -6778,6 +6916,5 @@ function getProductEmoji(
   ) {
     return "🥬";
   }
-
   return "🌱";
 }
